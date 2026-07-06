@@ -1,0 +1,12 @@
+services:
+  kisan-mitra:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount your trained model without rebuilding the image
+      - ./backend/models:/app/backend/models:ro
+    environment:
+      - MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
+      - MODEL_INPUT_SIZE=224
+    restart: unless-stopped

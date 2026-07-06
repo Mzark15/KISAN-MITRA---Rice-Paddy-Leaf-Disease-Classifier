@@ -1,32 +1,87 @@
-# Kisan Mitra - Phase 1 MVP (Disease Detection)
+# Kisan Mitra — Phase 1 MVP (Disease Detection)
 
-## Overview
-A minimal, working web-based MVP for an AI-powered paddy disease diagnosis tool.
+Minimal web-based MVP for AI-powered paddy disease diagnosis. Built for field testing with farmers (weeks 4–9).
 
-## Setup
+## Quick start (single command)
 
-### Install dependencies
+**Docker (recommended):**
 ```bash
-pip install -r requirements.txt
+docker compose up --build
 ```
 
-### Run backend
+**Local (no Docker):**
 ```bash
-cd backend
-python main.py
+chmod +x start.sh && ./start.sh
 ```
 
-### Run frontend
-Open `frontend/index.html` in your browser.
+Open **http://localhost:8000** in your browser.
 
-## API Endpoints
+## Model setup
+
+Place your trained MobileNetV2 TFLite model at:
+
+```
+backend/models/paddy_disease_model.tflite
+```
+
+See [backend/models/README.md](backend/models/README.md) for class order and input specs.
+
+Without the model file, `/diagnose` returns HTTP 503. `/diseases` and `/health` still work.
+
+**macOS (Apple Silicon):** `tflite-runtime` is not available via pip. Use `./start.sh` (installs TensorFlow as fallback) or `pip install tensorflow` manually.
+
+## API
+
+| Method | Endpoint    | Description                                      |
+|--------|-------------|--------------------------------------------------|
+| GET    | `/health`   | Service status and whether model is loaded       |
+| GET    | `/diseases` | Static JSON: cause, severity, treatments         |
+| POST   | `/diagnose` | Upload leaf image → disease + confidence + treatment |
 
 ### POST /diagnose
-Accepts an uploaded leaf image and returns disease diagnosis.
 
-### GET /diseases
-Returns static JSON with disease information and treatment options.
+- **Body:** `multipart/form-data` with field `image`
+- **Response:**
+```json
+{
+  "disease": "Brown Spot",
+  "confidence": 87.42,
+  "treatment": {
+    "cause": "...",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "...",
+    "chemical_treatment": "..."
+  }
+}
+```
 
-## Notes
-- The current implementation uses a placeholder for model inference (returns random values). Replace this with your actual TFLite/MobileNetV2 model.
-- CORS is enabled for local frontend testing.
+## Disease classes
+
+Leaf Blast · Bacterial Leaf Blight · Brown Spot · Tungro · Sheath Blight · Healthy
+
+## Project structure
+
+```
+backend/
+  main.py           # FastAPI app + static frontend serve
+  inference.py      # TFLite model loading & prediction
+  diseases.json     # Treatment knowledge base
+  models/           # Place .tflite model here
+frontend/
+  index.html        # Single-page upload/capture UI
+docker-compose.yml
+Dockerfile
+start.sh
+```
+
+## Environment variables
+
+| Variable           | Default                                      |
+|--------------------|----------------------------------------------|
+| `MODEL_PATH`       | `backend/models/paddy_disease_model.tflite`  |
+| `MODEL_INPUT_SIZE` | `224`                                        |
+| `PORT`             | `8000`                                       |
+
+## Out of scope (Phase 1)
+
+Voice/Bhashini, crop recommendation, user accounts, market prices, multi-language.

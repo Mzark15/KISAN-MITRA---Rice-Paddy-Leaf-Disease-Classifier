@@ -6,58 +6,94 @@
     <title>Kisan Mitra - Disease Detection</title>
 </head>
 <body>
-    <h1>Kisan Mitra - Paddy Disease Detection</h1>
-    <input type="file" id="imageInput" accept="image/*">
-    <button id="diagnoseBtn">Diagnose</button>
+    <h1>Kisan Mitra — Paddy Disease Detection</h1>
+    <p>Upload or capture a paddy leaf photo for diagnosis.</p>
+
+    <div>
+        <label>
+            Choose image:
+            <input type="file" id="imageInput" accept="image/*">
+        </label>
+        <label>
+            Or capture with camera:
+            <input type="file" id="cameraInput" accept="image/*" capture="environment">
+        </label>
+    </div>
+
+    <button id="diagnoseBtn" disabled>Diagnose</button>
+    <div id="preview"></div>
     <div id="result"></div>
 
     <script>
-        const API_URL = "http://localhost:8000";
+        const API_URL = window.location.origin;
+        let selectedFile = null;
 
-        document.getElementById("diagnoseBtn").addEventListener("click", async () => {
-            const fileInput = document.getElementById("imageInput");
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                alert("Please select an image first");
+        const imageInput = document.getElementById("imageInput");
+        const cameraInput = document.getElementById("cameraInput");
+        const diagnoseBtn = document.getElementById("diagnoseBtn");
+        const preview = document.getElementById("preview");
+        const result = document.getElementById("result");
+
+        function handleFileSelect(file) {
+            if (!file) return;
+            selectedFile = file;
+            diagnoseBtn.disabled = false;
+            result.innerHTML = "";
+
+            const url = URL.createObjectURL(file);
+            preview.innerHTML = `<img src="${url}" alt="Selected leaf" width="300">`;
+        }
+
+        imageInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
+        cameraInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
+
+        diagnoseBtn.addEventListener("click", async () => {
+            if (!selectedFile) {
+                alert("Please select or capture an image first.");
                 return;
             }
 
+            diagnoseBtn.disabled = true;
+            diagnoseBtn.textContent = "Diagnosing…";
+            result.innerHTML = "<p>Running diagnosis…</p>";
+
             const formData = new FormData();
-            formData.append("image", file);
-            
+            formData.append("image", selectedFile);
+
             try {
                 const response = await fetch(`${API_URL}/diagnose`, {
                     method: "POST",
-                    body: formData
+                    body: formData,
                 });
-                
+
+                const data = await response.json().catch(() => ({}));
+
                 if (!response.ok) {
-                    throw new Error(await response.text());
+                    throw new Error(data.detail || `Request failed (${response.status})`);
                 }
-                
-                const data = await response.json();
+
                 displayResult(data);
             } catch (error) {
-                document.getElementById("result").innerHTML = `
-                    <h3>Error</h3>
-                    <p>${error.message}</p>
-                `;
+                result.innerHTML = `<h3>Error</h3><p>${error.message}</p>`;
+            } finally {
+                diagnoseBtn.disabled = false;
+                diagnoseBtn.textContent = "Diagnose";
             }
         });
 
         function displayResult(data) {
-            document.getElementById("result").innerHTML = `
+            const t = data.treatment;
+            result.innerHTML = `
                 <h2>Diagnosis Result</h2>
                 <p><strong>Disease:</strong> ${data.disease}</p>
                 <p><strong>Confidence:</strong> ${data.confidence}%</p>
                 <h3>Treatment Information</h3>
-                <p><strong>Cause:</strong> ${data.treatment.cause}</p>
-                <p><strong>Severity Levels:</strong> ${data.treatment.severity_levels.join(", ")}</p>
+                <p><strong>Cause:</strong> ${t.cause}</p>
+                <p><strong>Severity Levels:</strong> ${t.severity_levels.join(", ")}</p>
                 <h4>Organic Treatment</h4>
-                <p>${data.treatment.organic_treatment}</p>
+                <p>${t.organic_treatment}</p>
                 <h4>Chemical Treatment</h4>
-                <p>${data.treatment.chemical_treatment}</p>
+                <p>${t.chemical_treatment}</p>
             `;
         }
     </script>

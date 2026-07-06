@@ -1,38 +1,80 @@
 {
-  "Leaf Blast": {
-    "cause": "Fungus (Magnaporthe oryzae)",
-    "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Use neem oil spray (2-3%), remove and destroy infected leaves, maintain proper plant spacing.",
-    "chemical_treatment": "Apply tricyclazole or isoprothiolane fungicides as per recommended dosage."
-  },
   "Bacterial Leaf Blight": {
     "cause": "Bacteria (Xanthomonas oryzae pv. oryzae)",
     "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Use copper-based organic bactericides, practice crop rotation, avoid overhead irrigation.",
+    "organic_treatment": "Use copper-based organic bactericides, remove infected leaves, avoid overhead irrigation, practice crop rotation.",
     "chemical_treatment": "Apply streptomycin sulfate or copper oxychloride as per agricultural guidelines."
+  },
+  "Bacterial Leaf Streak": {
+    "cause": "Bacteria (Xanthomonas oryzae pv. oryzicola)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Remove and destroy infected plants, use disease-free seeds, maintain field sanitation.",
+    "chemical_treatment": "Apply copper-based bactericides; streptomycin where recommended by local extension officers."
+  },
+  "Bacterial Panicle Blight": {
+    "cause": "Bacteria (Burkholderia glumae / gladioli)",
+    "severity_levels": ["Medium", "High"],
+    "organic_treatment": "Use certified disease-free seeds, avoid excessive nitrogen, improve drainage.",
+    "chemical_treatment": "Seed treatment with recommended bactericides; field sprays at panicle initiation if outbreak occurs."
+  },
+  "Black Stem Borer": {
+    "cause": "Insect pest (Scirpophaga incertulas) — stem borer larvae damage stems",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Release egg parasitoids (Trichogramma), use light traps, remove stubble after harvest.",
+    "chemical_treatment": "Apply cartap hydrochloride or fipronil granules at recommended growth stages."
+  },
+  "Blast": {
+    "cause": "Fungus (Magnaporthe oryzae)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Neem oil spray (2-3%), remove infected leaves, maintain proper spacing and balanced fertilization.",
+    "chemical_treatment": "Apply tricyclazole or isoprothiolane fungicides as per recommended dosage."
   },
   "Brown Spot": {
     "cause": "Fungus (Cochliobolus miyabeanus)",
     "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Apply compost tea or garlic extract spray, ensure proper fertilization.",
+    "organic_treatment": "Apply compost tea or garlic extract spray, ensure proper fertilization and soil health.",
     "chemical_treatment": "Use mancozeb or propiconazole fungicides at recommended intervals."
   },
+  "Downy Mildew": {
+    "cause": "Oomycete (Sclerophthora macrospora)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Improve drainage, avoid waterlogging, use resistant varieties where available.",
+    "chemical_treatment": "Apply metalaxyl or fosetyl-aluminium fungicides during early infection stages."
+  },
+  "Hispa": {
+    "cause": "Insect pest (Dicladispa armigera) — beetles scrape leaf tissue",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Hand-pick beetles, use neem-based sprays, maintain field hygiene.",
+    "chemical_treatment": "Apply chlorpyrifos or quinalphos as per local agricultural recommendations."
+  },
+  "Leaf Roller": {
+    "cause": "Insect pest (Cnaphalocrocis medinalis) — larvae roll and feed on leaves",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Use light traps, encourage natural predators, remove rolled leaves with larvae.",
+    "chemical_treatment": "Apply chlorantraniliprole or flubendiamide insecticides at early larval stage."
+  },
   "Tungro": {
-    "cause": "Virus (Rice tungro bacilliform virus + Rice tungro spherical virus) transmitted by green leafhoppers",
+    "cause": "Virus complex transmitted by green leafhoppers (Nephotettix spp.)",
     "severity_levels": ["Medium", "High"],
-    "organic_treatment": "Use reflective mulches to deter leafhoppers, remove infected plants, plant resistant varieties.",
+    "organic_treatment": "Use reflective mulches, remove infected plants, plant resistant varieties.",
     "chemical_treatment": "Control leafhopper vectors with imidacloprid or thiamethoxam insecticides."
   },
-  "Sheath Blight": {
-    "cause": "Fungus (Rhizoctonia solani)",
+  "White Stem Borer": {
+    "cause": "Insect pest (Scirpophaga innotata) — stem borer larvae",
     "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Practice proper water management, use Trichoderma biofungicide, avoid excessive nitrogen.",
-    "chemical_treatment": "Apply validamycin or hexaconazole fungicides during early stages of infection."
+    "organic_treatment": "Remove egg masses by hand, use pheromone traps, destroy crop stubble after harvest.",
+    "chemical_treatment": "Apply carbofuran granules or chlorantraniliprole as per growth-stage guidelines."
   },
-  "Healthy": {
-    "cause": "No disease detected",
+  "Yellow Stem Borer": {
+    "cause": "Insect pest (Scirpophaga incertulas) — dead-heart and white-head symptoms",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Clip leaf tips with egg masses, use light traps, release Trichogramma parasitoids.",
+    "chemical_treatment": "Apply cartap hydrochloride or fipronil granules at tillering and flowering stages."
+  },
+  "Normal": {
+    "cause": "No disease detected — healthy paddy leaf",
     "severity_levels": ["Healthy"],
-    "organic_treatment": "Maintain regular field monitoring and good agricultural practices.",
+    "organic_treatment": "Continue regular field monitoring and good agricultural practices.",
     "chemical_treatment": "No chemical treatment needed."
   }
 }

@@ -18,13 +18,18 @@ Open **http://localhost:8000** in your browser.
 
 ## Model setup
 
-Place your trained MobileNetV2 TFLite model at:
+Place your trained **Paddy Doctor MobileNet** TFLite model at:
 
 ```
 backend/models/paddy_disease_model.tflite
 ```
 
 See [backend/models/README.md](backend/models/README.md) for class order and input specs.
+
+**Have a Keras `.h5` model?** Convert it:
+```bash
+python scripts/convert_to_tflite.py path/to/your_model.h5
+```
 
 Without the model file, `/diagnose` returns HTTP 503. `/diseases` and `/health` still work.
 
@@ -55,9 +60,11 @@ Without the model file, `/diagnose` returns HTTP 503. `/diseases` and `/health` 
 }
 ```
 
-## Disease classes
+## Disease classes (Paddy Doctor — 13 classes)
 
-Leaf Blast · Bacterial Leaf Blight · Brown Spot · Tungro · Sheath Blight · Healthy
+Bacterial Leaf Blight · Bacterial Leaf Streak · Bacterial Panicle Blight · Black Stem Borer · Blast · Brown Spot · Downy Mildew · Hispa · Leaf Roller · Tungro · White Stem Borer · Yellow Stem Borer · Normal
+
+Based on the [Paddy Doctor dataset](https://paddydoc.github.io/) (Petchiammal et al., CODS-COMAD 2023).
 
 ## Project structure
 
@@ -79,7 +86,7 @@ start.sh
 | Variable           | Default                                      |
 |--------------------|----------------------------------------------|
 | `MODEL_PATH`       | `backend/models/paddy_disease_model.tflite`  |
-| `MODEL_INPUT_SIZE` | `224`                                        |
+| `MODEL_INPUT_SIZE` | `256`                                        |
 | `PORT`             | `8000`                                       |
 
 ## Out of scope (Phase 1)

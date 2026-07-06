@@ -1,4 +1,4 @@
-"""TFLite model inference for paddy disease classification."""
+"""TFLite inference for Paddy Doctor 13-class MobileNet classifier."""
 
 import logging
 import os
@@ -9,19 +9,27 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+# Paddy Doctor dataset class order (paper Table 1 / Keras folder alphabetical order)
 DISEASE_CLASSES = [
-    "Leaf Blast",
     "Bacterial Leaf Blight",
+    "Bacterial Leaf Streak",
+    "Bacterial Panicle Blight",
+    "Black Stem Borer",
+    "Blast",
     "Brown Spot",
+    "Downy Mildew",
+    "Hispa",
+    "Leaf Roller",
     "Tungro",
-    "Sheath Blight",
-    "Healthy",
+    "White Stem Borer",
+    "Yellow Stem Borer",
+    "Normal",
 ]
 
 DEFAULT_MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "models", "paddy_disease_model.tflite"
 )
-INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "224"))
+INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
 
 
 class ModelNotLoadedError(Exception):
@@ -58,6 +66,14 @@ class DiseaseModel:
         self.interpreter.allocate_tensors()
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
+
+        output_shape = self.output_details[0]["shape"][-1]
+        if output_shape != len(DISEASE_CLASSES):
+            logger.warning(
+                "Model has %d output classes but app expects %d — verify class order",
+                output_shape,
+                len(DISEASE_CLASSES),
+            )
         logger.info("Loaded TFLite model from %s", self.model_path)
 
     @property
@@ -65,11 +81,10 @@ class DiseaseModel:
         return self.interpreter is not None
 
     def _preprocess(self, img: Image.Image) -> np.ndarray:
-        """Resize and normalize image for MobileNetV2-style input."""
+        """Resize and normalize for Paddy Doctor MobileNet training (256×256)."""
         img = img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
         arr = np.array(img, dtype=np.float32)
-
-        # MobileNetV2 expects pixels in [-1, 1]
+        # Keras MobileNet preprocess_input: scale to [-1, 1]
         arr = (arr / 127.5) - 1.0
         return np.expand_dims(arr, axis=0)
 
@@ -85,7 +100,6 @@ class DiseaseModel:
         self.interpreter.invoke()
         output = self.interpreter.get_tensor(self.output_details[0]["index"])[0]
 
-        # Softmax if logits
         if output.min() < 0 or abs(output.sum() - 1.0) > 0.1:
             exp = np.exp(output - np.max(output))
             output = exp / exp.sum()

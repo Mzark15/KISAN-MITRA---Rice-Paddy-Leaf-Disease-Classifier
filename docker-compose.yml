@@ -8,5 +8,5 @@ services:
       - ./backend/models:/app/backend/models:ro
     environment:
       - MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
-      - MODEL_INPUT_SIZE=224
+      - MODEL_INPUT_SIZE=256
     restart: unless-stopped

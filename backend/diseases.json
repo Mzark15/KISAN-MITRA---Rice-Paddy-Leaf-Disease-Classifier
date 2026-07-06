@@ -1,0 +1,38 @@
+{
+  "Leaf Blast": {
+    "cause": "Fungus (Magnaporthe oryzae)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Use neem oil spray (2-3%), remove and destroy infected leaves, maintain proper plant spacing.",
+    "chemical_treatment": "Apply tricyclazole or isoprothiolane fungicides as per recommended dosage."
+  },
+  "Bacterial Leaf Blight": {
+    "cause": "Bacteria (Xanthomonas oryzae pv. oryzae)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Use copper-based organic bactericides, practice crop rotation, avoid overhead irrigation.",
+    "chemical_treatment": "Apply streptomycin sulfate or copper oxychloride as per agricultural guidelines."
+  },
+  "Brown Spot": {
+    "cause": "Fungus (Cochliobolus miyabeanus)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Apply compost tea or garlic extract spray, ensure proper fertilization.",
+    "chemical_treatment": "Use mancozeb or propiconazole fungicides at recommended intervals."
+  },
+  "Tungro": {
+    "cause": "Virus (Rice tungro bacilliform virus + Rice tungro spherical virus) transmitted by green leafhoppers",
+    "severity_levels": ["Medium", "High"],
+    "organic_treatment": "Use reflective mulches to deter leafhoppers, remove infected plants, plant resistant varieties.",
+    "chemical_treatment": "Control leafhopper vectors with imidacloprid or thiamethoxam insecticides."
+  },
+  "Sheath Blight": {
+    "cause": "Fungus (Rhizoctonia solani)",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Practice proper water management, use Trichoderma biofungicide, avoid excessive nitrogen.",
+    "chemical_treatment": "Apply validamycin or hexaconazole fungicides during early stages of infection."
+  },
+  "Healthy": {
+    "cause": "No disease detected",
+    "severity_levels": ["Healthy"],
+    "organic_treatment": "Maintain regular field monitoring and good agricultural practices.",
+    "chemical_treatment": "No chemical treatment needed."
+  }
+}

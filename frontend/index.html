@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kisan Mitra - Disease Detection</title>
+</head>
+<body>
+    <h1>Kisan Mitra - Paddy Disease Detection</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="diagnoseBtn">Diagnose</button>
+    <div id="result"></div>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+
+        document.getElementById("diagnoseBtn").addEventListener("click", async () => {
+            const fileInput = document.getElementById("imageInput");
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert("Please select an image first");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("image", file);
+            
+            try {
+                const response = await fetch(`${API_URL}/diagnose`, {
+                    method: "POST",
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                
+                const data = await response.json();
+                displayResult(data);
+            } catch (error) {
+                document.getElementById("result").innerHTML = `
+                    <h3>Error</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        });
+
+        function displayResult(data) {
+            document.getElementById("result").innerHTML = `
+                <h2>Diagnosis Result</h2>
+                <p><strong>Disease:</strong> ${data.disease}</p>
+                <p><strong>Confidence:</strong> ${data.confidence}%</p>
+                <h3>Treatment Information</h3>
+                <p><strong>Cause:</strong> ${data.treatment.cause}</p>
+                <p><strong>Severity Levels:</strong> ${data.treatment.severity_levels.join(", ")}</p>
+                <h4>Organic Treatment</h4>
+                <p>${data.treatment.organic_treatment}</p>
+                <h4>Chemical Treatment</h4>
+                <p>${data.treatment.chemical_treatment}</p>
+            `;
+        }
+    </script>
+</body>
+</html>

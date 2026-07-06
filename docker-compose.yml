@@ -9,4 +9,5 @@ services:
     environment:
       - MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
       - MODEL_INPUT_SIZE=256
+      - MODEL_PREPROCESS=resnet
     restart: unless-stopped

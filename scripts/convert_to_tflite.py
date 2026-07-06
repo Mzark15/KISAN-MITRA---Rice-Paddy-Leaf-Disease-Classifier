@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a trained Keras model (.h5 / .keras) to TFLite for Kisan Mitra."""
+"""Convert a trained Keras ResNet34 model (.h5 / .keras) to TFLite for Kisan Mitra."""
 
 import argparse
 import os

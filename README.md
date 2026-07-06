@@ -18,7 +18,7 @@ Open **http://localhost:8000** in your browser.
 
 ## Model setup
 
-Place your trained **Paddy Doctor MobileNet** TFLite model at:
+Place your trained **Paddy Doctor ResNet34** TFLite model at:
 
 ```
 backend/models/paddy_disease_model.tflite
@@ -64,7 +64,8 @@ Without the model file, `/diagnose` returns HTTP 503. `/diseases` and `/health` 
 
 Bacterial Leaf Blight · Bacterial Leaf Streak · Bacterial Panicle Blight · Black Stem Borer · Blast · Brown Spot · Downy Mildew · Hispa · Leaf Roller · Tungro · White Stem Borer · Yellow Stem Borer · Normal
 
-Based on the [Paddy Doctor dataset](https://paddydoc.github.io/) (Petchiammal et al., CODS-COMAD 2023).
+Based on the [Paddy Doctor dataset](https://paddydoc.github.io/) (Petchiammal et al., CODS-COMAD 2023).  
+Classifier: **ResNet34** (97.50% F1-score in paper benchmark).
 
 ## Project structure
 
@@ -87,6 +88,7 @@ start.sh
 |--------------------|----------------------------------------------|
 | `MODEL_PATH`       | `backend/models/paddy_disease_model.tflite`  |
 | `MODEL_INPUT_SIZE` | `256`                                        |
+| `MODEL_PREPROCESS` | `resnet` (use `scale` if trained with `/255`) |
 | `PORT`             | `8000`                                       |
 
 ## Out of scope (Phase 1)

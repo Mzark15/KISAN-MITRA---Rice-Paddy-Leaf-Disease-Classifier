@@ -11,7 +11,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
-from inference import DISEASE_CLASSES, ModelNotLoadedError, get_model
+from inference import (
+    DISEASE_CLASSES,
+    INPUT_SIZE,
+    MODEL_ARCH,
+    PREPROCESS_MODE,
+    ModelNotLoadedError,
+    get_model,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +51,10 @@ def health():
     return {
         "status": "ok",
         "model_loaded": model.is_loaded,
+        "model_arch": MODEL_ARCH,
+        "input_size": INPUT_SIZE,
+        "preprocess": PREPROCESS_MODE,
+        "num_classes": len(DISEASE_CLASSES),
         "classes": DISEASE_CLASSES,
     }
 

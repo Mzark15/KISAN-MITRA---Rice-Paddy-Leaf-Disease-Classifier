@@ -1,4 +1,4 @@
-"""TFLite inference for Paddy Doctor 13-class MobileNet classifier."""
+"""TFLite inference for Paddy Doctor 13-class ResNet34 classifier."""
 
 import logging
 import os
@@ -8,6 +8,8 @@ import numpy as np
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+MODEL_ARCH = "resnet34"
 
 # Paddy Doctor dataset class order (paper Table 1 / Keras folder alphabetical order)
 DISEASE_CLASSES = [
@@ -30,10 +32,38 @@ DEFAULT_MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "models", "paddy_disease_model.tflite"
 )
 INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
+# resnet = ImageNet ResNet preprocess (BGR + mean subtraction); scale = pixel/255
+PREPROCESS_MODE = os.environ.get("MODEL_PREPROCESS", "resnet").lower()
+
+# Keras ResNet / ResNet34 ImageNet mean subtraction (caffe mode, BGR order)
+_RESNET_MEANS_BGR = np.array([103.939, 116.779, 123.68], dtype=np.float32)
 
 
 class ModelNotLoadedError(Exception):
     """Raised when the TFLite model file is missing or failed to load."""
+
+
+def _resnet_preprocess(arr: np.ndarray) -> np.ndarray:
+    """Match tf.keras.applications.resnet50.preprocess_input (caffe mode)."""
+    arr = arr[..., ::-1]  # RGB -> BGR
+    arr[..., 0] -= _RESNET_MEANS_BGR[0]
+    arr[..., 1] -= _RESNET_MEANS_BGR[1]
+    arr[..., 2] -= _RESNET_MEANS_BGR[2]
+    return arr
+
+
+def _scale_preprocess(arr: np.ndarray) -> np.ndarray:
+    return arr / 255.0
+
+
+def preprocess_image(arr: np.ndarray) -> np.ndarray:
+    if PREPROCESS_MODE == "resnet":
+        return _resnet_preprocess(arr)
+    if PREPROCESS_MODE == "scale":
+        return _scale_preprocess(arr)
+    raise ValueError(
+        f"Unknown MODEL_PREPROCESS={PREPROCESS_MODE!r}. Use 'resnet' or 'scale'."
+    )
 
 
 class DiseaseModel:
@@ -74,18 +104,23 @@ class DiseaseModel:
                 output_shape,
                 len(DISEASE_CLASSES),
             )
-        logger.info("Loaded TFLite model from %s", self.model_path)
+        logger.info(
+            "Loaded ResNet34 TFLite model from %s (%dx%d, preprocess=%s)",
+            self.model_path,
+            INPUT_SIZE,
+            INPUT_SIZE,
+            PREPROCESS_MODE,
+        )
 
     @property
     def is_loaded(self) -> bool:
         return self.interpreter is not None
 
     def _preprocess(self, img: Image.Image) -> np.ndarray:
-        """Resize and normalize for Paddy Doctor MobileNet training (256×256)."""
+        """Resize and normalize for Paddy Doctor ResNet34 training (256×256)."""
         img = img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
         arr = np.array(img, dtype=np.float32)
-        # Keras MobileNet preprocess_input: scale to [-1, 1]
-        arr = (arr / 127.5) - 1.0
+        arr = preprocess_image(arr)
         return np.expand_dims(arr, axis=0)
 
     def predict(self, img: Image.Image) -> Tuple[str, float]:

@@ -1,12 +1,13 @@
-# Paddy Doctor model
+# Paddy Doctor — ResNet34 model
 
-Place your trained **MobileNet** TFLite export here:
+Place your trained **ResNet34** TFLite export here:
 
 ```
 paddy_disease_model.tflite
 ```
 
-Trained on the [Paddy Doctor dataset](https://paddydoc.github.io/) (16,225 images, 13 classes).
+Trained on the [Paddy Doctor dataset](https://paddydoc.github.io/) (16,225 images, 13 classes).  
+Paper benchmark: ResNet34 achieved **97.50% F1-score** (best among DCNN, MobileNet, VGG16, Xception).
 
 ## Class order (index 0 → 12)
 
@@ -30,23 +31,29 @@ Must match training label order:
 
 If you used Keras `ImageDataGenerator.flow_from_directory`, folder names are typically alphabetical (`bacterial_leaf_blight`, `blast`, …, `normal`) which matches this order.
 
-## Input preprocessing
+## Input preprocessing (ResNet34)
 
-- **Size:** 256×256 RGB (Paddy Doctor paper benchmark)
-- **Normalization:** `(pixel / 127.5) - 1.0` (Keras MobileNet `preprocess_input`)
+Matches Keras `resnet50.preprocess_input` used with ImageNet-pretrained ResNet fine-tuning:
 
-Override size with `MODEL_INPUT_SIZE` if your export differs.
+- **Size:** 256×256 RGB (Paddy Doctor paper)
+- **Steps:** RGB → BGR, then subtract channel means `[103.939, 116.779, 123.68]`
+
+If your training used simple `rescale=1./255` instead, set:
+
+```bash
+export MODEL_PREPROCESS=scale
+```
 
 ## Convert Keras model to TFLite
 
-If you have a `.h5` or SavedModel instead of `.tflite`:
-
 ```bash
-python scripts/convert_to_tflite.py path/to/your_model.h5
+python scripts/convert_to_tflite.py path/to/resnet34_model.h5
 ```
 
-## Custom path
+## Environment variables
 
-```bash
-export MODEL_PATH=/path/to/your_model.tflite
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MODEL_PATH` | `backend/models/paddy_disease_model.tflite` | Path to `.tflite` file |
+| `MODEL_INPUT_SIZE` | `256` | Input width/height |
+| `MODEL_PREPROCESS` | `resnet` | `resnet` or `scale` |

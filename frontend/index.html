@@ -1,100 +1,407 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kisan Mitra - Disease Detection</title>
+    <title>Kisan Mitra — Paddy Advisor</title>
+    <style>
+        :root {
+            --green-900: #1b4332; --green-700: #2d6a4f; --green-500: #40916c;
+            --green-100: #d8f3dc; --green-50: #f1faee; --text: #1b1b1b;
+            --muted: #5c5c5c; --white: #fff; --border: #b7e4c7; --grey-100: #f4f4f4;
+            --warn: #d97706; --danger: #b00020;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, sans-serif; background: var(--green-50); color: var(--text); line-height: 1.5; }
+        .container { max-width: 640px; margin: 0 auto; padding: 1rem; }
+        header { background: linear-gradient(135deg, var(--green-900), var(--green-700)); color: var(--white); padding: 1.25rem 1rem; border-radius: 0 0 1rem 1rem; margin-bottom: 1rem; }
+        header h1 { margin: 0 0 0.25rem; font-size: 1.35rem; }
+        header p { margin: 0; opacity: 0.9; font-size: 0.95rem; }
+        .card { background: var(--white); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(27,67,50,.08); }
+        .card h2 { margin: 0 0 0.75rem; font-size: 1.1rem; color: var(--green-900); }
+        label { display: block; margin-bottom: 0.75rem; font-size: 0.9rem; }
+        input[type="file"], input[type="text"], select, textarea {
+            width: 100%; margin-top: 0.35rem; padding: 0.5rem; border: 1px solid var(--border); border-radius: 0.5rem; font-family: inherit;
+        }
+        button, .btn { background: var(--green-700); color: var(--white); border: none; border-radius: 0.5rem; padding: 0.65rem 1rem; font-size: 0.95rem; cursor: pointer; }
+        button:disabled { opacity: 0.55; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: var(--green-900); }
+        .btn-secondary { background: var(--green-100); color: var(--green-900); }
+        .btn-secondary.active { background: var(--green-700); color: var(--white); }
+        #preview img { max-width: 100%; border-radius: 0.5rem; margin-top: 0.75rem; border: 2px solid var(--border); }
+        .confidence-bar { height: 8px; background: var(--green-100); border-radius: 4px; margin: 0.5rem 0 1rem; overflow: hidden; }
+        .confidence-fill { height: 100%; background: var(--green-500); border-radius: 4px; }
+        .kvk-badge { display: inline-block; background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 0.5rem; padding: 0.5rem 0.75rem; margin: 0.75rem 0; font-size: 0.85rem; }
+        .feedback-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+        .chat-messages { min-height: 140px; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem; background: var(--green-50); margin-bottom: 0.75rem; }
+        .msg { max-width: 85%; padding: 0.55rem 0.75rem; border-radius: 0.75rem; margin-bottom: 0.5rem; font-size: 0.92rem; white-space: pre-wrap; word-break: break-word; }
+        .msg.user { margin-left: auto; background: var(--green-700); color: var(--white); }
+        .msg.assistant { margin-right: auto; background: var(--grey-100); border: 1px solid var(--border); }
+        .chat-input-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+        .chat-input-row textarea { flex: 1; min-height: 70px; resize: vertical; }
+        .mic-btn { width: 80px; height: 80px; border-radius: 50%; font-size: 1.75rem; display: block; margin: 1rem auto; }
+        .mic-btn.recording { background: var(--danger); animation: pulse 1s infinite; }
+        @keyframes pulse { 50% { transform: scale(1.05); } }
+        .voice-transcript { background: var(--green-50); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.75rem; margin: 0.75rem 0; font-size: 0.9rem; }
+        .fallback-label { font-size: 0.78rem; color: var(--muted); text-align: center; }
+        .disclaimer { margin-top: 0.75rem; font-size: 0.78rem; color: var(--muted); text-align: center; }
+        .error-text { color: var(--danger); font-size: 0.9rem; }
+        .search-box { margin-bottom: 0.75rem; }
+        .disease-item { border: 1px solid var(--border); border-radius: 0.5rem; margin-bottom: 0.5rem; overflow: hidden; }
+        .disease-item summary { padding: 0.65rem 0.75rem; cursor: pointer; font-weight: 600; color: var(--green-900); background: var(--green-50); }
+        .disease-body { padding: 0.75rem; font-size: 0.9rem; border-top: 1px solid var(--border); }
+        footer { text-align: center; padding: 1rem; font-size: 0.85rem; }
+        footer a { color: var(--green-700); }
+        .lang-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }
+        .lang-row select { flex: 1; min-width: 140px; }
+    </style>
 </head>
 <body>
-    <h1>Kisan Mitra — Paddy Disease Detection</h1>
-    <p>Upload or capture a paddy leaf photo for diagnosis.</p>
+    <header>
+        <div class="container">
+            <h1>किसान मित्र — Kisan Mitra</h1>
+            <p>AI crop advisor for paddy farmers</p>
+        </div>
+    </header>
 
-    <div>
-        <label>
-            Choose image:
-            <input type="file" id="imageInput" accept="image/*">
-        </label>
-        <label>
-            Or capture with camera:
-            <input type="file" id="cameraInput" accept="image/*" capture="environment">
-        </label>
+    <div class="container">
+        <!-- Section 1: Photo Diagnosis -->
+        <section class="card" id="diagnoseSection">
+            <h2>📷 Photo Diagnosis</h2>
+            <label>Village (optional): <input type="text" id="villageInput" placeholder="e.g. Tirunelveli"></label>
+            <label>Choose image: <input type="file" id="imageInput" accept="image/*"></label>
+            <label>Or capture: <input type="file" id="cameraInput" accept="image/*" capture="environment"></label>
+            <button id="diagnoseBtn" disabled>Diagnose</button>
+            <div id="preview"></div>
+            <div id="result"></div>
+        </section>
+
+        <!-- Section 2: Text Chat -->
+        <section class="card" id="chatSection">
+            <h2>💬 Text Chat</h2>
+            <div class="lang-row">
+                <label for="languageSelect" style="margin:0">Language:</label>
+                <select id="languageSelect">
+                    <option value="hi" selected>हिंदी (Hindi)</option>
+                    <option value="mr">मराठी (Marathi)</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+            <div class="chat-input-row">
+                <textarea id="chatInput" placeholder="अपना सवाल लिखें…"></textarea>
+                <button id="sendBtn">Send</button>
+            </div>
+            <p class="disclaimer">सलाह हमेशा अपने KVK से जाँचें — Kisan Mitra AI है, विशेषज्ञ नहीं।</p>
+        </section>
+
+        <!-- Section 3: Voice Chat -->
+        <section class="card" id="voiceSection">
+            <h2>🎤 Voice Chat</h2>
+            <p style="font-size:0.9rem;color:var(--muted)">Hold the button, speak your question, then release. Uses local MLX STT on Mac when available.</p>
+            <button class="mic-btn" id="micBtn" aria-label="Hold to record">🎤</button>
+            <p class="fallback-label" id="voiceFallbackLabel" hidden>Using device voice (limited)</p>
+            <div id="voiceTranscript" class="voice-transcript" hidden></div>
+            <div id="voiceReply" class="voice-transcript" hidden></div>
+        </section>
+
+        <!-- Section 4: Disease Reference -->
+        <section class="card" id="referenceSection">
+            <h2>📚 Disease Reference</h2>
+            <input type="text" class="search-box" id="diseaseSearch" placeholder="Search disease name…">
+            <div id="diseaseList"></div>
+        </section>
     </div>
 
-    <button id="diagnoseBtn" disabled>Diagnose</button>
-    <div id="preview"></div>
-    <div id="result"></div>
+    <footer>
+        <a href="/dashboard">Field team dashboard →</a>
+    </footer>
 
     <script>
         const API_URL = window.location.origin;
+        const SEVERE_DISEASES = ["Tungro", "Bacterial Panicle Blight"];
+        const CHAT_UNAVAILABLE = "Chat not available. Contact your field coordinator.";
+
         let selectedFile = null;
+        let pendingDiagnosisContext = null;
+        let conversationHistory = [];
+        let currentDiagnosisId = null;
+        let diseasesCache = {};
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
 
-        const imageInput = document.getElementById("imageInput");
-        const cameraInput = document.getElementById("cameraInput");
-        const diagnoseBtn = document.getElementById("diagnoseBtn");
-        const preview = document.getElementById("preview");
-        const result = document.getElementById("result");
+        const languageSelect = document.getElementById("languageSelect");
+        const villageInput = document.getElementById("villageInput");
 
+        // --- Disease Reference (offline after load) ---
+        async function loadDiseases() {
+            try {
+                const res = await fetch(`${API_URL}/diseases`);
+                diseasesCache = await res.json();
+                renderDiseaseList("");
+            } catch (e) {
+                document.getElementById("diseaseList").innerHTML = '<p class="error-text">Could not load diseases.</p>';
+            }
+        }
+
+        function renderDiseaseList(query) {
+            const list = document.getElementById("diseaseList");
+            const q = query.toLowerCase();
+            const names = Object.keys(diseasesCache).filter(n => n.toLowerCase().includes(q));
+            list.innerHTML = names.map(name => {
+                const d = diseasesCache[name];
+                return `<details class="disease-item"><summary>${name}</summary>
+                    <div class="disease-body">
+                        <p><strong>Cause:</strong> ${d.cause}</p>
+                        <p><strong>Organic:</strong> ${d.organic_treatment}</p>
+                        <p><strong>Chemical:</strong> ${d.chemical_treatment}</p>
+                    </div></details>`;
+            }).join("");
+        }
+
+        document.getElementById("diseaseSearch").addEventListener("input", e => renderDiseaseList(e.target.value));
+        loadDiseases();
+
+        // --- Photo Diagnosis ---
         function handleFileSelect(file) {
             if (!file) return;
             selectedFile = file;
-            diagnoseBtn.disabled = false;
-            result.innerHTML = "";
-
-            const url = URL.createObjectURL(file);
-            preview.innerHTML = `<img src="${url}" alt="Selected leaf" width="300">`;
+            document.getElementById("diagnoseBtn").disabled = false;
+            document.getElementById("result").innerHTML = "";
+            document.getElementById("preview").innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Leaf">`;
         }
+        document.getElementById("imageInput").addEventListener("change", e => handleFileSelect(e.target.files[0]));
+        document.getElementById("cameraInput").addEventListener("change", e => handleFileSelect(e.target.files[0]));
 
-        imageInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
-        cameraInput.addEventListener("change", (e) => handleFileSelect(e.target.files[0]));
-
-        diagnoseBtn.addEventListener("click", async () => {
-            if (!selectedFile) {
-                alert("Please select or capture an image first.");
-                return;
-            }
-
-            diagnoseBtn.disabled = true;
-            diagnoseBtn.textContent = "Diagnosing…";
+        document.getElementById("diagnoseBtn").addEventListener("click", async () => {
+            if (!selectedFile) return;
+            const btn = document.getElementById("diagnoseBtn");
+            const result = document.getElementById("result");
+            btn.disabled = true; btn.textContent = "Diagnosing…";
             result.innerHTML = "<p>Running diagnosis…</p>";
 
             const formData = new FormData();
             formData.append("image", selectedFile);
+            formData.append("language", languageSelect.value);
+            if (villageInput.value.trim()) formData.append("village", villageInput.value.trim());
 
             try {
-                const response = await fetch(`${API_URL}/diagnose`, {
-                    method: "POST",
-                    body: formData,
-                });
-
-                const data = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    throw new Error(data.detail || `Request failed (${response.status})`);
-                }
-
+                const res = await fetch(`${API_URL}/diagnose`, { method: "POST", body: formData });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.detail || `Failed (${res.status})`);
                 displayResult(data);
-            } catch (error) {
-                result.innerHTML = `<h3>Error</h3><p>${error.message}</p>`;
+            } catch (err) {
+                result.innerHTML = `<p class="error-text">${err.message}</p>`;
             } finally {
-                diagnoseBtn.disabled = false;
-                diagnoseBtn.textContent = "Diagnose";
+                btn.disabled = false; btn.textContent = "Diagnose";
             }
         });
 
         function displayResult(data) {
             const t = data.treatment;
-            result.innerHTML = `
-                <h2>Diagnosis Result</h2>
-                <p><strong>Disease:</strong> ${data.disease}</p>
-                <p><strong>Confidence:</strong> ${data.confidence}%</p>
-                <h3>Treatment Information</h3>
+            currentDiagnosisId = data.diagnosis_id;
+            pendingDiagnosisContext = { disease: data.disease, confidence: data.confidence };
+            const severe = SEVERE_DISEASES.includes(data.disease);
+            const kvk = severe ? '<div class="kvk-badge">⚠️ Severe disease — contact your nearest KVK immediately.</div>' : '';
+
+            document.getElementById("result").innerHTML = `
+                <h3>${data.disease}</h3>
+                <p>Confidence: ${data.confidence}%</p>
+                <div class="confidence-bar"><div class="confidence-fill" style="width:${Math.min(data.confidence,100)}%"></div></div>
+                ${kvk}
                 <p><strong>Cause:</strong> ${t.cause}</p>
-                <p><strong>Severity Levels:</strong> ${t.severity_levels.join(", ")}</p>
-                <h4>Organic Treatment</h4>
-                <p>${t.organic_treatment}</p>
-                <h4>Chemical Treatment</h4>
-                <p>${t.chemical_treatment}</p>
+                <p><strong>Organic:</strong> ${t.organic_treatment}</p>
+                <p><strong>Chemical:</strong> ${t.chemical_treatment}</p>
+                <p><strong>Precautions:</strong> Follow label instructions. Consult KVK before spraying.</p>
+                <div class="feedback-row">
+                    <button class="btn btn-secondary" onclick="submitFeedback(true)">👍 Helpful</button>
+                    <button class="btn btn-secondary" onclick="submitFeedback(false)">👎 Not helpful</button>
+                </div>
+                <p id="feedbackMsg" style="font-size:0.85rem;color:var(--muted)"></p>
             `;
+            document.getElementById("chatSection").scrollIntoView({ behavior: "smooth" });
+        }
+
+        async function submitFeedback(helpful) {
+            if (!currentDiagnosisId) return;
+            try {
+                const res = await fetch(`${API_URL}/diagnose/feedback`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ diagnosis_id: currentDiagnosisId, helpful }),
+                });
+                if (res.ok) document.getElementById("feedbackMsg").textContent = "Thank you for your feedback!";
+            } catch (_) {}
+        }
+        window.submitFeedback = submitFeedback;
+
+        // --- Text Chat ---
+        function appendChat(role, content) {
+            const div = document.createElement("div");
+            div.className = `msg ${role}`;
+            div.textContent = content;
+            document.getElementById("chatMessages").appendChild(div);
+            document.getElementById("chatMessages").scrollTop = 99999;
+        }
+
+        async function sendChat() {
+            const input = document.getElementById("chatInput");
+            const message = input.value.trim();
+            if (!message) return;
+            const language = languageSelect.value;
+            appendChat("user", message);
+            input.value = "";
+            document.getElementById("sendBtn").disabled = true;
+
+            const payload = { message, language, conversation_history: conversationHistory };
+            if (pendingDiagnosisContext) {
+                payload.diagnosis_context = pendingDiagnosisContext;
+                pendingDiagnosisContext = null;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.status === 503) { appendChat("assistant", CHAT_UNAVAILABLE); return; }
+                if (!res.ok) throw new Error(data.detail || `Chat failed (${res.status})`);
+                appendChat("assistant", data.reply);
+                conversationHistory.push({ role: "user", content: message }, { role: "assistant", content: data.reply });
+                if (conversationHistory.length > 6) conversationHistory = conversationHistory.slice(-6);
+            } catch (err) {
+                appendChat("assistant", err.message);
+            } finally {
+                document.getElementById("sendBtn").disabled = false;
+            }
+        }
+        document.getElementById("sendBtn").addEventListener("click", sendChat);
+        document.getElementById("chatInput").addEventListener("keydown", e => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
+        });
+
+        // --- Voice Chat ---
+        const micBtn = document.getElementById("micBtn");
+        const voiceFallbackLabel = document.getElementById("voiceFallbackLabel");
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.start();
+                isRecording = true;
+                micBtn.classList.add("recording");
+            } catch (err) {
+                alert("Microphone access denied.");
+            }
+        }
+
+        function stopRecording() {
+            if (!mediaRecorder || !isRecording) return;
+            isRecording = false;
+            micBtn.classList.remove("recording");
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: "audio/webm" });
+                mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                await processVoice(blob);
+            };
+            mediaRecorder.stop();
+        }
+
+        micBtn.addEventListener("mousedown", startRecording);
+        micBtn.addEventListener("mouseup", stopRecording);
+        micBtn.addEventListener("mouseleave", () => { if (isRecording) stopRecording(); });
+        micBtn.addEventListener("touchstart", e => { e.preventDefault(); startRecording(); });
+        micBtn.addEventListener("touchend", e => { e.preventDefault(); stopRecording(); });
+
+        async function processVoice(blob) {
+            const language = languageSelect.value;
+            const transcriptEl = document.getElementById("voiceTranscript");
+            const replyEl = document.getElementById("voiceReply");
+            transcriptEl.hidden = false;
+            replyEl.hidden = false;
+            transcriptEl.textContent = "Listening…";
+            replyEl.textContent = "";
+
+            const formData = new FormData();
+            formData.append("audio", blob, "recording.webm");
+            formData.append("language", language);
+            if (pendingDiagnosisContext) {
+                formData.append("diagnosis_context", JSON.stringify(pendingDiagnosisContext));
+                pendingDiagnosisContext = null;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/voice/chat`, { method: "POST", body: formData });
+                if (res.status === 503) {
+                    voiceFallbackLabel.hidden = false;
+                    return await voiceFallbackBrowser(language);
+                }
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.detail || `Voice failed (${res.status})`);
+                transcriptEl.textContent = `You said: ${data.transcript}`;
+                replyEl.textContent = data.reply_text;
+                await playTTS(data.reply_text, language);
+            } catch (err) {
+                voiceFallbackLabel.hidden = false;
+                await voiceFallbackBrowser(language, err.message);
+            }
+        }
+
+        async function playTTS(text, language) {
+            try {
+                const res = await fetch(`${API_URL}/voice/tts`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text, language }),
+                });
+                if (res.status === 503 || !res.ok) {
+                    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+                    return;
+                }
+                const audioBlob = await res.blob();
+                new Audio(URL.createObjectURL(audioBlob)).play();
+            } catch (_) {
+                speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+            }
+        }
+
+        async function voiceFallbackBrowser(language, errMsg) {
+            const transcriptEl = document.getElementById("voiceTranscript");
+            const replyEl = document.getElementById("voiceReply");
+            if (errMsg) transcriptEl.textContent = errMsg;
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                transcriptEl.textContent = "Voice not available on this device.";
+                return;
+            }
+            const rec = new SpeechRecognition();
+            rec.lang = language === "mr" ? "mr-IN" : language === "en" ? "en-IN" : "hi-IN";
+            rec.onresult = async (e) => {
+                const transcript = e.results[0][0].transcript;
+                transcriptEl.textContent = `You said: ${transcript}`;
+                try {
+                    const res = await fetch(`${API_URL}/chat`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ message: transcript, language, conversation_history: [] }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.status === 503) { replyEl.textContent = CHAT_UNAVAILABLE; return; }
+                    if (!res.ok) throw new Error(data.detail);
+                    replyEl.textContent = data.reply;
+                    speechSynthesis.speak(new SpeechSynthesisUtterance(data.reply));
+                } catch (err) {
+                    replyEl.textContent = err.message;
+                }
+            };
+            rec.start();
         }
     </script>
 </body>

@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ backend/
 COPY frontend/ frontend/
+RUN mkdir -p /app/data
 
 ENV MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
 ENV PORT=8000

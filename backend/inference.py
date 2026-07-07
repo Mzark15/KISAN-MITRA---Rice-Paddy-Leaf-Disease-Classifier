@@ -77,7 +77,7 @@ class DiseaseModel:
     def _load(self) -> None:
         if not os.path.isfile(self.model_path):
             logger.warning(
-                "TFLite model not found at %s — /diagnose will return 503 until model is placed",
+                "TFLite model not found at %s — using random classification fallback for testing",
                 self.model_path,
             )
             return
@@ -116,6 +116,20 @@ class DiseaseModel:
     def is_loaded(self) -> bool:
         return self.interpreter is not None
 
+    @property
+    def model_mode(self) -> str:
+        return "tflite" if self.is_loaded else "random"
+
+    def _random_predict(self, img: Image.Image) -> Tuple[str, float]:
+        """Temporary testing fallback when no .tflite model is available."""
+        arr = np.array(img.convert("RGB"), dtype=np.uint8)
+        seed = int(np.sum(arr, dtype=np.uint64) % (2**32 - 1))
+        rng = np.random.default_rng(seed)
+        confidences = rng.random(len(DISEASE_CLASSES))
+        confidences /= confidences.sum()
+        idx = int(np.argmax(confidences))
+        return DISEASE_CLASSES[idx], float(confidences[idx]) * 100
+
     def _preprocess(self, img: Image.Image) -> np.ndarray:
         """Resize and normalize for Paddy Doctor ResNet34 training (256×256)."""
         img = img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
@@ -125,10 +139,7 @@ class DiseaseModel:
 
     def predict(self, img: Image.Image) -> Tuple[str, float]:
         if not self.is_loaded:
-            raise ModelNotLoadedError(
-                f"Model file not found at {self.model_path}. "
-                "Place your trained .tflite file there or set MODEL_PATH."
-            )
+            return self._random_predict(img)
 
         input_data = self._preprocess(img)
         self.interpreter.set_tensor(self.input_details[0]["index"], input_data)

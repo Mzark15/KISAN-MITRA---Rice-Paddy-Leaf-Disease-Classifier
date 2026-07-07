@@ -11,3 +11,5 @@ build/
 .venv/
 *.tflite
 !backend/models/.gitkeep
+data/
+.env

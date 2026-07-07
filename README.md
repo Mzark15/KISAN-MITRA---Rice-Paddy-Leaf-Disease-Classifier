@@ -1,96 +1,218 @@
-# Kisan Mitra — Phase 1 MVP (Disease Detection)
+# Kisan Mitra — AI Crop Advisor (Paddy)
 
-Minimal web-based MVP for AI-powered paddy disease diagnosis. Built for field testing with farmers (weeks 4–9).
+A multi-phase AI-powered application for paddy farmers, starting with disease detection, then adding chat, voice, and dashboard features.
 
-## Quick start (single command)
+## Features
 
-**Docker (recommended):**
+### Phase 1 – Disease Detection
+- Upload or capture a leaf photo
+- Run inference using a TFLite model (ResNet34 trained on Paddy Doctor dataset)
+- Get a diagnosis with confidence score
+- View cause, severity, and organic/chemical treatment options
+- No external cloud required for inference (works offline if model is present)
+- 13-class classification (Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight, Black Stem Borer, Blast, Brown Spot, Downy Mildew, Hispa, Leaf Roller, Tungro, White Stem Borer, Yellow Stem Borer, Normal)
+
+### Phase 2 – Chat
+- Text chat in Hindi, Marathi, English
+- LLM grounded in disease knowledge base (no hallucinations)
+- Integrates SambaNova (default), OpenAI, Anthropic, or Gemini
+- Optional diagnosis context (chat about a recent diagnosis)
+
+### Phase 3 – Voice
+- Speech-to-text (STT): local MLX (Apple Silicon) or Bhashini (cloud)
+- Text-to-speech (TTS): Bhashini or browser fallback
+- Voice chat flow: speak, get transcript, get AI reply, hear it back
+
+### Phase 4 – Dashboard
+- Field team dashboard with login
+- Summary stats: total diagnoses, chats, voice sessions
+- Charts: top diseases, last 7 days trend
+- Recent diagnoses table with village and feedback
+- Feedback: farmers can mark diagnoses helpful/not helpful
+- Async SQLite persistence
+
+## Quickstart (Local)
+
+### 1. Prerequisites
+- Python 3.10+
+- For MLX STT (optional, Apple Silicon only):
+  - macOS 13+
+  - ffmpeg (`brew install ffmpeg`)
+
+### 2. Install
 ```bash
-docker compose up --build
+git clone https://github.com/Mzark15/KISAN-MITRA---Rice-Paddy-Leaf-Disease-Classifier
+cd krishi
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+# Optional: MLX STT for Apple Silicon
+pip install -r requirements-mlx.txt
 ```
 
-**Local (no Docker):**
+### 3. Configure
+Copy `.env.example` to `.env` and set the variables you need:
 ```bash
-chmod +x start.sh && ./start.sh
+cp .env.example .env
 ```
 
-Open **http://localhost:8000** in your browser.
-
-## Model setup
-
-Place your trained **Paddy Doctor ResNet34** TFLite model at:
-
-```
-backend/models/paddy_disease_model.tflite
+Minimal config for Phase 1 (no API keys needed):
+```env
+MODEL_PATH=backend/models/paddy_disease_model.tflite
+MODEL_INPUT_SIZE=256
+MODEL_PREPROCESS=resnet
+DB_PATH=data/kisan_mitra.db
 ```
 
-See [backend/models/README.md](backend/models/README.md) for class order and input specs.
+Add LLM provider for chat (choose one):
+```env
+LLM_PROVIDER=sambanova
+SAMBANOVA_API_KEY=sk-...
+# OR
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+# OR
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=...
+# OR
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-...
+```
 
-**Have a Keras `.h5` model?** Convert it:
+Add Bhashini for voice (optional):
+```env
+VOICE_STT_PROVIDER=auto  # mlx first, then bhashini
+BHASHINI_USER_ID=your-user-id
+BHASHINI_API_KEY=your-api-key
+BHASHINI_PIPELINE_ID=your-pipeline-id
+```
+
+### 4. Add Model
+Download or place your TFLite model at `backend/models/paddy_disease_model.tflite`.
+If no model is present, the app falls back to a random classification for testing.
+
+### 5. Run
 ```bash
-python scripts/convert_to_tflite.py path/to/your_model.h5
+# Option A: Use start script
+./start.sh
+
+# Option B: Run manually
+cd backend
+python main.py
 ```
 
-Without the model file, `/diagnose` returns HTTP 503. `/diseases` and `/health` still work.
+Open http://localhost:8000 in your browser.
 
-**macOS (Apple Silicon):** `tflite-runtime` is not available via pip. Use `./start.sh` (installs TensorFlow as fallback) or `pip install tensorflow` manually.
+## Docker
 
-## API
-
-| Method | Endpoint    | Description                                      |
-|--------|-------------|--------------------------------------------------|
-| GET    | `/health`   | Service status and whether model is loaded       |
-| GET    | `/diseases` | Static JSON: cause, severity, treatments         |
-| POST   | `/diagnose` | Upload leaf image → disease + confidence + treatment |
-
-### POST /diagnose
-
-- **Body:** `multipart/form-data` with field `image`
-- **Response:**
-```json
-{
-  "disease": "Brown Spot",
-  "confidence": 87.42,
-  "treatment": {
-    "cause": "...",
-    "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "...",
-    "chemical_treatment": "..."
-  }
-}
+### Build & Run
+```bash
+docker-compose up --build -d
 ```
 
-## Disease classes (Paddy Doctor — 13 classes)
+The app is served on http://localhost:8000.
+Model directory is mounted from `./backend/models`, database from `./data`.
 
-Bacterial Leaf Blight · Bacterial Leaf Streak · Bacterial Panicle Blight · Black Stem Borer · Blast · Brown Spot · Downy Mildew · Hispa · Leaf Roller · Tungro · White Stem Borer · Yellow Stem Borer · Normal
-
-Based on the [Paddy Doctor dataset](https://paddydoc.github.io/) (Petchiammal et al., CODS-COMAD 2023).  
-Classifier: **ResNet34** (97.50% F1-score in paper benchmark).
-
-## Project structure
-
+## Project Structure
 ```
-backend/
-  main.py           # FastAPI app + static frontend serve
-  inference.py      # TFLite model loading & prediction
-  diseases.json     # Treatment knowledge base
-  models/           # Place .tflite model here
-frontend/
-  index.html        # Single-page upload/capture UI
-docker-compose.yml
-Dockerfile
-start.sh
+krishi/
+├── backend/
+│   ├── main.py                 # FastAPI entrypoint
+│   ├── inference.py            # TFLite model wrapper
+│   ├── chat_service.py         # LLM chat with grounding
+│   ├── voice_service.py        # STT/TTS router
+│   ├── bhashini_service.py     # Bhashini ULCA API client
+│   ├── mlx_stt_service.py      # Local MLX Qwen2-Audio STT
+│   ├── database.py             # Async SQLite persistence
+│   ├── schemas.py              # Pydantic models
+│   ├── diseases.json           # Disease knowledge base
+│   ├── routers/
+│   │   ├── health.py           # Health and model info
+│   │   ├── diseases.py         # Get static disease info
+│   │   ├── diagnose.py         # Upload image → diagnosis
+│   │   ├── chat.py             # Text chat endpoint
+│   │   ├── voice.py            # Voice endpoints
+│   │   └── dashboard.py        # Stats, recent, feedback
+│   └── models/                 # TFLite model directory
+├── frontend/
+│   ├── index.html              # Farmer app
+│   └── dashboard.html          # Field team dashboard
+├── scripts/
+│   └── convert_to_tflite.py    # Convert Keras model to TFLite
+├── requirements.txt
+├── requirements-mlx.txt        # Optional MLX dependencies
+├── .env.example
+├── .gitignore
+├── Dockerfile
+├── docker-compose.yml
+└── start.sh
 ```
 
-## Environment variables
+## API Endpoints
 
-| Variable           | Default                                      |
-|--------------------|----------------------------------------------|
-| `MODEL_PATH`       | `backend/models/paddy_disease_model.tflite`  |
-| `MODEL_INPUT_SIZE` | `256`                                        |
-| `MODEL_PREPROCESS` | `resnet` (use `scale` if trained with `/255`) |
-| `PORT`             | `8000`                                       |
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | Serve app frontend |
+| `GET` | `/health` | Health check & model info |
+| `GET` | `/diseases` | Get full disease knowledge base |
+| `POST` | `/diagnose` | Upload image → diagnosis |
+| `POST` | `/diagnose/feedback` | Submit feedback on diagnosis |
+| `POST` | `/chat` | Text chat with optional diagnosis context |
+| `GET` | `/voice/status` | Check voice STT/TTS availability |
+| `POST` | `/voice/stt` | Audio → text |
+| `POST` | `/voice/tts` | Text → audio |
+| `POST` | `/voice/chat` | Voice chat end‑to‑end |
+| `GET` | `/dashboard` | Serve dashboard frontend |
+| `GET` | `/dashboard/stats` | Get dashboard statistics |
+| `GET` | `/dashboard/recent` | Get recent diagnoses |
 
-## Out of scope (Phase 1)
+## Environment Variables
 
-Voice/Bhashini, crop recommendation, user accounts, market prices, multi-language.
+| Name | Default | Description |
+|------|---------|-------------|
+| `PORT` | `8000` | Server port |
+| `MODEL_PATH` | `backend/models/paddy_disease_model.tflite` | Path to TFLite model file |
+| `MODEL_INPUT_SIZE` | `256` | Model input resolution (px) |
+| `MODEL_PREPROCESS` | `resnet` | Preprocessing mode: `resnet` (ImageNet mean subtraction, BGR) or `scale` |
+| `DB_PATH` | `data/kisan_mitra.db` | SQLite database path |
+| `LLM_PROVIDER` | `sambanova` | LLM provider: `sambanova`, `openai`, `gemini`, `anthropic` |
+| `SAMBANOVA_API_KEY` | | SambaNova API key |
+| `SAMBANOVA_BASE_URL` | `https://api.sambanova.ai/v1` | SambaNova base URL |
+| `SAMBANOVA_MODEL` | `Meta-Llama-3.1-8B-Instruct` | SambaNova model |
+| `OPENAI_API_KEY` | | OpenAI API key |
+| `GEMINI_API_KEY` | | Google AI Studio API key |
+| `ANTHROPIC_API_KEY` | | Anthropic API key |
+| `VOICE_STT_PROVIDER` | `mlx` | STT provider: `mlx`, `bhashini`, `auto` |
+| `MLX_STT_ENABLED` | `1` | Enable/disable MLX STT |
+| `MLX_STT_MODEL` | `mlx-community/Qwen2-Audio-7B-Instruct-4bit` | MLX model ID |
+| `BHASHINI_USER_ID` | | Bhashini user ID |
+| `BHASHINI_API_KEY` | | Bhashini API key |
+| `BHASHINI_PIPELINE_ID` | | Bhashini pipeline ID (optional) |
+| `DASHBOARD_PASSWORD` | `kisan123` | Dashboard login password |
+
+## Model Integration
+
+The app expects a TFLite model trained on the Paddy Doctor dataset (13 classes, alphabetical order).
+
+Use `scripts/convert_to_tflite.py` to convert a Keras model to TFLite:
+```bash
+cd scripts
+python convert_to_tflite.py --model ../my_model.keras --output ../backend/models/paddy_disease_model.tflite
+```
+
+## Languages Supported
+
+- **Diagnosis/disease reference**: English (UI in Hindi/Marathi/English)
+- **Chat/voice**: Hindi, Marathi, English
+- **Bhashini TTS/STT**: + Tamil, Telugu, Kannada, Punjabi, Gujarati, Bengali, Malayalam
+
+## Troubleshooting
+
+- **Model not loaded**: Check `MODEL_PATH` and ensure the file exists. If not, the app uses random predictions for testing.
+- **MLX STT not working**: Ensure you’re on Apple Silicon, installed `requirements-mlx.txt`, installed ffmpeg, and `MLX_STT_ENABLED=1`.
+- **CORS**: The app allows all origins in dev; adjust middleware in `main.py` for production.
+- **Database**: The app creates the DB file and tables automatically if they don’t exist.
+
+## License
+
+TBD.

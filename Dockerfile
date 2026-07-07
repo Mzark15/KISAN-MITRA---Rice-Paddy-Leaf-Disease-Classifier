@@ -2,10 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# No system packages needed — Pillow ships pre-built wheels.
+# libgl1/libglib2.0-0 are only required for OpenCV, which this project does not use.
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

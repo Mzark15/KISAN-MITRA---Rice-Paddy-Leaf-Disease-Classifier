@@ -21,8 +21,6 @@
       --warn-bdr:  #f9a825;
       --danger:    #b00020;
       --danger-bg: #fde8e8;
-      --demo-bg:   #e8e0ff;
-      --demo-text: #4a1d96;
     }
 
     /* ── Reset ───────────────────────────────────────────────────────────── */
@@ -125,9 +123,7 @@
       border-radius: 20px; font-size: .76rem; font-weight: 700;
       margin: 0 4px 6px 0;
     }
-    .badge-demo  { background: var(--demo-bg);   color: var(--demo-text); }
     .badge-kvk   { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
-    .badge-real  { background: var(--green-100); color: var(--green-900); }
 
     .warn-box {
       background: var(--warn-bg); border-left: 3px solid var(--warn-bdr);
@@ -301,17 +297,17 @@ async function checkHealth() {
     const d   = await apiFetch("/health");
     const bar = document.getElementById("statusBar");
 
-    const modelLabel = d.model_mode === "tflite"
-      ? `✅ Classifier: ${d.model_arch} (${d.num_classes} classes)`
-      : "⚠️ Classifier: demo stub (place rice_disease_model.tflite in backend/models/)";
+    const modelLabel = d.model_loaded
+      ? `✅ Classifier ready (${d.num_classes} classes)`
+      : "❌ Model not loaded — place rice_disease_model.tflite in backend/models/";
 
     const chatLabel = d.chat_configured
       ? `✅ Chat: ${d.chat_provider} / ${d.chat_model}`
-      : `❌ Chat: not configured (set ${d.chat_provider.toUpperCase()}_API_KEY)`;
+      : `❌ Chat: not configured (set GROQ_API_KEY)`;
 
     bar.textContent = `${modelLabel}   |   ${chatLabel}`;
-    bar.style.background = (d.model_mode === "tflite" && d.chat_configured) ? "#d8f3dc" : "#fff3cd";
-    bar.style.color      = (d.model_mode === "tflite" && d.chat_configured) ? "#1b4332" : "#856404";
+    bar.style.background = (d.model_loaded && d.chat_configured) ? "#d8f3dc" : "#fff3cd";
+    bar.style.color      = (d.model_loaded && d.chat_configured) ? "#1b4332" : "#856404";
   } catch {
     document.getElementById("statusBar").textContent = "⚠️ Cannot reach backend on port 8000";
   }
@@ -404,14 +400,9 @@ function renderResult(d) {
   banner.style.display = "block";
   banner.textContent   = `📋 Last diagnosis: ${d.disease} (${d.confidence.toFixed(1)}%)`;
 
-  const modeBadge = d.model_mode === "random"
-    ? `<span class="badge badge-demo">Demo — not a real prediction</span>`
-    : `<span class="badge badge-real">✓ TFLite classifier</span>`;
   const kvkBadge = t.refer_to_kvk
     ? `<span class="badge badge-kvk">⚠️ Consult KVK immediately</span>`
     : "";
-  const lowConf = !d.safe_to_act && d.low_confidence_message
-    ? `<div class="warn-box">⚠️ ${esc(d.low_confidence_message)}</div>` : "";
   const isNormal = d.disease === "Normal";
   const treatment = isNormal
     ? `<p style="color:var(--green-700);margin-top:.5rem">✅ Plant looks healthy. Keep monitoring regularly.</p>`
@@ -426,11 +417,10 @@ function renderResult(d) {
     `;
 
   document.getElementById("resultContent").innerHTML = `
-    <div>${modeBadge}${kvkBadge}</div>
+    <div>${kvkBadge}</div>
     <h3 style="font-size:1.3rem;color:var(--green-900);margin:.3rem 0">${esc(d.disease)}</h3>
     <p style="font-size:.85rem;color:var(--muted)">Confidence: ${d.confidence.toFixed(1)}%</p>
     <div class="conf-bar"><div class="conf-fill" style="width:${Math.min(d.confidence,100)}%"></div></div>
-    ${lowConf}
     ${treatment}
   `;
   document.getElementById("feedbackMsg").textContent = "";

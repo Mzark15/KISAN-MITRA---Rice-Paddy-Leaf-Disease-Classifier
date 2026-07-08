@@ -1,4 +1,11 @@
-"""TFLite inference for Paddy Doctor 13-class ResNet34 classifier."""
+"""
+inference.py — TFLite classifier for rice disease detection
+
+Model: ResNet34 trained on Paddy Doctor dataset (13 classes)
+Place model at: backend/models/rice_disease_model.tflite
+
+If model file is missing, the server starts but /diagnose returns HTTP 503.
+"""
 
 import logging
 import os
@@ -9,9 +16,7 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-MODEL_ARCH = "resnet34"
-
-# Paddy Doctor dataset class order (paper Table 1 / Keras folder alphabetical order)
+# 13 Paddy Doctor classes — must match the order your model was trained with
 DISEASE_CLASSES = [
     "Bacterial Leaf Blight",
     "Bacterial Leaf Streak",
@@ -28,136 +33,98 @@ DISEASE_CLASSES = [
     "Normal",
 ]
 
+MODEL_ARCH   = "resnet34"
+INPUT_SIZE   = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
+PREPROCESS_MODE = os.environ.get("MODEL_PREPROCESS", "resnet").lower()
+
 DEFAULT_MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "models", "rice_disease_model.tflite"
 )
-INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
-# resnet = ImageNet ResNet preprocess (BGR + mean subtraction); scale = pixel/255
-PREPROCESS_MODE = os.environ.get("MODEL_PREPROCESS", "resnet").lower()
 
-# Keras ResNet / ResNet34 ImageNet mean subtraction (caffe mode, BGR order)
+# ResNet ImageNet mean subtraction (caffe mode, BGR)
 _RESNET_MEANS_BGR = np.array([103.939, 116.779, 123.68], dtype=np.float32)
 
 
 class ModelNotLoadedError(Exception):
-    """Raised when the TFLite model file is missing or failed to load."""
+    """Model file not found or failed to load."""
 
 
-def _resnet_preprocess(arr: np.ndarray) -> np.ndarray:
-    """Match tf.keras.applications.resnet50.preprocess_input (caffe mode)."""
-    arr = arr[..., ::-1]  # RGB -> BGR
-    arr[..., 0] -= _RESNET_MEANS_BGR[0]
-    arr[..., 1] -= _RESNET_MEANS_BGR[1]
-    arr[..., 2] -= _RESNET_MEANS_BGR[2]
-    return arr
-
-
-def _scale_preprocess(arr: np.ndarray) -> np.ndarray:
-    return arr / 255.0
-
-
-def preprocess_image(arr: np.ndarray) -> np.ndarray:
+def _preprocess(img: Image.Image) -> np.ndarray:
+    img = img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
+    arr = np.array(img, dtype=np.float32)
     if PREPROCESS_MODE == "resnet":
-        return _resnet_preprocess(arr)
-    if PREPROCESS_MODE == "scale":
-        return _scale_preprocess(arr)
-    raise ValueError(
-        f"Unknown MODEL_PREPROCESS={PREPROCESS_MODE!r}. Use 'resnet' or 'scale'."
-    )
+        arr = arr[..., ::-1]  # RGB → BGR
+        arr -= _RESNET_MEANS_BGR
+    else:
+        arr /= 255.0
+    return np.expand_dims(arr, axis=0)
 
 
 class DiseaseModel:
-    def __init__(self, model_path: Optional[str] = None):
-        self.model_path = model_path or os.environ.get("MODEL_PATH", DEFAULT_MODEL_PATH)
-        self.interpreter = None
+    def __init__(self):
+        self.interpreter   = None
         self.input_details = None
         self.output_details = None
         self._load()
 
     def _load(self) -> None:
-        if not os.path.isfile(self.model_path):
-            logger.warning(
-                "TFLite model not found at %s — using random classification fallback for testing",
-                self.model_path,
-            )
-            return
+        model_path = os.environ.get("MODEL_PATH", DEFAULT_MODEL_PATH)
+
+        if not os.path.isfile(model_path):
+            logger.error("Model file not found: %s", model_path)
+            return   # is_loaded will be False; /diagnose will return 503
 
         try:
             import tflite_runtime.interpreter as tflite
         except ImportError:
             try:
                 import tensorflow.lite as tflite  # type: ignore
-            except ImportError as exc:
-                raise ModelNotLoadedError(
-                    "Neither tflite-runtime nor tensorflow is installed"
-                ) from exc
+            except ImportError:
+                logger.error("Install tflite-runtime or tensorflow to run the model.")
+                return
 
-        self.interpreter = tflite.Interpreter(model_path=self.model_path)
+        self.interpreter = tflite.Interpreter(model_path=model_path)
         self.interpreter.allocate_tensors()
-        self.input_details = self.interpreter.get_input_details()
+        self.input_details  = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
-
-        output_shape = self.output_details[0]["shape"][-1]
-        if output_shape != len(DISEASE_CLASSES):
-            logger.warning(
-                "Model has %d output classes but app expects %d — verify class order",
-                output_shape,
-                len(DISEASE_CLASSES),
-            )
-        logger.info(
-            "Loaded ResNet34 TFLite model from %s (%dx%d, preprocess=%s)",
-            self.model_path,
-            INPUT_SIZE,
-            INPUT_SIZE,
-            PREPROCESS_MODE,
-        )
+        logger.info("Model loaded: %s (%d classes, %dx%d)",
+                    model_path, len(DISEASE_CLASSES), INPUT_SIZE, INPUT_SIZE)
 
     @property
     def is_loaded(self) -> bool:
         return self.interpreter is not None
 
-    @property
-    def model_mode(self) -> str:
-        return "tflite" if self.is_loaded else "random"
-
-    def _random_predict(self, img: Image.Image) -> Tuple[str, float]:
-        """Temporary testing fallback when no .tflite model is available."""
-        arr = np.array(img.convert("RGB"), dtype=np.uint8)
-        seed = int(np.sum(arr, dtype=np.uint64) % (2**32 - 1))
-        rng = np.random.default_rng(seed)
-        confidences = rng.random(len(DISEASE_CLASSES))
-        confidences /= confidences.sum()
-        idx = int(np.argmax(confidences))
-        return DISEASE_CLASSES[idx], float(confidences[idx]) * 100
-
-    def _preprocess(self, img: Image.Image) -> np.ndarray:
-        """Resize and normalize for Paddy Doctor ResNet34 training (256×256)."""
-        img = img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
-        arr = np.array(img, dtype=np.float32)
-        arr = preprocess_image(arr)
-        return np.expand_dims(arr, axis=0)
-
     def predict(self, img: Image.Image) -> Tuple[str, float]:
+        """
+        Run inference on a PIL image.
+        Returns (disease_name, confidence_percent).
+        Raises ModelNotLoadedError if model file was not found.
+        """
         if not self.is_loaded:
-            return self._random_predict(img)
+            raise ModelNotLoadedError(
+                "rice_disease_model.tflite not found in backend/models/. "
+                "Place the trained model file there and restart the server."
+            )
 
-        input_data = self._preprocess(img)
-        self.interpreter.set_tensor(self.input_details[0]["index"], input_data)
+        data = _preprocess(img)
+        self.interpreter.set_tensor(self.input_details[0]["index"], data)
         self.interpreter.invoke()
         output = self.interpreter.get_tensor(self.output_details[0]["index"])[0]
 
+        # Softmax if model outputs logits instead of probabilities
         if output.min() < 0 or abs(output.sum() - 1.0) > 0.1:
-            exp = np.exp(output - np.max(output))
+            exp    = np.exp(output - np.max(output))
             output = exp / exp.sum()
 
         idx = int(np.argmax(output))
         if idx >= len(DISEASE_CLASSES):
             raise ValueError(
-                f"Model output index {idx} exceeds {len(DISEASE_CLASSES)} classes"
+                f"Model output index {idx} out of range "
+                f"(expected < {len(DISEASE_CLASSES)}). "
+                "Check that DISEASE_CLASSES matches your training class order."
             )
 
-        confidence = float(output[idx]) * 100
-        return DISEASE_CLASSES[idx], confidence
+        return DISEASE_CLASSES[idx], float(output[idx]) * 100
 
 
 _model: Optional[DiseaseModel] = None

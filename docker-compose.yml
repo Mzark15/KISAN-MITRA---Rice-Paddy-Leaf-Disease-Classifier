@@ -4,27 +4,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/models:/app/backend/models:ro
+      # Drop rice_disease_model.tflite here — no rebuild needed
+      - ./backend/models:/app/backend/models
+      # SQLite DB persists across restarts
       - ./data:/app/data
     env_file:
       - .env
-    environment:
-      - MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
-      - MODEL_INPUT_SIZE=256
-      - MODEL_PREPROCESS=resnet
-      - DB_PATH=/app/data/kisan_mitra.db
-      - LLM_PROVIDER=${LLM_PROVIDER:-sambanova}
-      - SAMBANOVA_API_KEY=${SAMBANOVA_API_KEY:-}
-      - SAMBANOVA_BASE_URL=${SAMBANOVA_BASE_URL:-https://api.sambanova.ai/v1}
-      - SAMBANOVA_MODEL=${SAMBANOVA_MODEL:-Meta-Llama-3.1-8B-Instruct}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - VOICE_STT_PROVIDER=${VOICE_STT_PROVIDER:-mlx}
-      - MLX_STT_ENABLED=${MLX_STT_ENABLED:-1}
-      - MLX_STT_MODEL=${MLX_STT_MODEL:-mlx-community/Qwen2-Audio-7B-Instruct-4bit}
-      - BHASHINI_USER_ID=${BHASHINI_USER_ID:-}
-      - BHASHINI_API_KEY=${BHASHINI_API_KEY:-}
-      - BHASHINI_PIPELINE_ID=${BHASHINI_PIPELINE_ID:-}
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-kisan123}
     restart: unless-stopped

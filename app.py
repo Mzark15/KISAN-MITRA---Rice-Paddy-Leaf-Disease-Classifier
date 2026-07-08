@@ -18,7 +18,7 @@ from openai import OpenAI
 
 MODEL_PATH    = os.environ.get("MODEL_PATH", "models/rice_disease_model.keras")
 DISEASES_FILE = Path("diseases.json")
-GROQ_API_KEY  = "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" #os.environ.get("GROQ_API_KEY", "")
+GROQ_API_KEY  = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL    = os.environ.get("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 INPUT_SIZE    = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
 

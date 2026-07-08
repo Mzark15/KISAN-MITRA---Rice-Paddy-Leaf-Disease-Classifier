@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kisan Mitra — Paddy Advisor</title>
+  <title>Kisan Mitra</title>
   <style>
-    /* ── Design tokens — change colours here, nowhere else ──────────────── */
+    /* ── Design tokens ───────────────────────────────────────────────────── */
     :root {
       --green-900: #1b4332;
       --green-700: #2d6a4f;
@@ -18,813 +18,521 @@
       --white:     #fff;
       --grey:      #f4f4f4;
       --warn-bg:   #fff8e1;
-      --warn-border:#f9a825;
+      --warn-bdr:  #f9a825;
       --danger:    #b00020;
       --danger-bg: #fde8e8;
       --demo-bg:   #e8e0ff;
       --demo-text: #4a1d96;
     }
 
-    /* ── Reset & base ────────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; }
+    /* ── Reset ───────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
       font-family: system-ui, sans-serif;
       background: var(--green-50);
       color: var(--text);
       line-height: 1.55;
     }
-    .container { max-width: 640px; margin: 0 auto; padding: 1rem; }
+    .container { max-width: 680px; margin: 0 auto; padding: 1rem; }
 
     /* ── Header ──────────────────────────────────────────────────────────── */
     header {
       background: linear-gradient(135deg, var(--green-900), var(--green-700));
-      color: var(--white);
+      color: #fff;
       padding: 1.25rem 1rem;
       border-radius: 0 0 1rem 1rem;
       margin-bottom: 1rem;
     }
-    header h1 { margin: 0 0 .25rem; font-size: 1.35rem; }
-    header p  { margin: 0; opacity: .9; font-size: .95rem; }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p  { font-size: .88rem; opacity: .85; margin-top: 3px; }
+
+    /* Status bar */
+    #statusBar {
+      font-size: .78rem;
+      text-align: center;
+      padding: 5px;
+      background: var(--green-100);
+      color: var(--green-900);
+      border-radius: .4rem;
+      margin-bottom: 1rem;
+    }
 
     /* ── Cards ───────────────────────────────────────────────────────────── */
     .card {
       background: var(--white);
       border: 1px solid var(--border);
       border-radius: .75rem;
-      padding: 1rem;
+      padding: 1.1rem;
       margin-bottom: 1rem;
-      box-shadow: 0 2px 8px rgba(27,67,50,.08);
+      box-shadow: 0 2px 8px rgba(27,67,50,.07);
     }
-    .card h2 { margin: 0 0 .75rem; font-size: 1.1rem; color: var(--green-900); }
+    .card h2 { font-size: 1rem; color: var(--green-900); margin-bottom: .85rem; font-weight: 700; }
 
-    /* ── Forms ───────────────────────────────────────────────────────────── */
-    label { display: block; margin-bottom: .75rem; font-size: .9rem; }
+    /* ── Form elements ───────────────────────────────────────────────────── */
+    label { display: block; margin-bottom: .65rem; font-size: .9rem; }
     input[type="file"],
     input[type="text"],
     select,
     textarea {
+      display: block;
       width: 100%;
-      margin-top: .35rem;
-      padding: .5rem;
+      margin-top: .3rem;
+      padding: .5rem .65rem;
       border: 1px solid var(--border);
       border-radius: .5rem;
       font-family: inherit;
       font-size: .9rem;
+      background: var(--green-50);
     }
 
     /* ── Buttons ─────────────────────────────────────────────────────────── */
-    button, .btn {
-      background: var(--green-700);
-      color: var(--white);
+    .btn {
+      display: inline-block;
+      padding: .6rem 1.1rem;
       border: none;
       border-radius: .5rem;
-      padding: .65rem 1rem;
-      font-size: .95rem;
+      font-size: .93rem;
+      font-weight: 600;
       cursor: pointer;
+      transition: background .15s;
     }
-    button:disabled          { opacity: .55; cursor: not-allowed; }
-    button:hover:not(:disabled) { background: var(--green-900); }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--green-700);
-      color: var(--green-700);
-    }
+    .btn-primary  { background: var(--green-700); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--green-900); }
+    .btn-outline  { background: transparent; border: 1.5px solid var(--green-700); color: var(--green-700); }
+    .btn-block    { display: block; width: 100%; margin-top: .75rem; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
 
-    /* ── Language selector row ───────────────────────────────────────────── */
-    .lang-row {
-      display: flex;
-      gap: .5rem;
-      align-items: center;
-      margin-bottom: .75rem;
-      flex-wrap: wrap;
+    /* ── Language selector ───────────────────────────────────────────────── */
+    .lang-row { display: flex; gap: .5rem; margin-bottom: .85rem; }
+    .lang-btn {
+      flex: 1; padding: .5rem; border-radius: .5rem;
+      border: 1.5px solid var(--border); background: var(--green-50);
+      font-size: .85rem; font-weight: 600; cursor: pointer; text-align: center;
+      color: var(--muted);
     }
-    .lang-row label { margin: 0; }
-    .lang-row select { flex: 1; min-width: 140px; }
+    .lang-btn.active { background: var(--green-700); color: #fff; border-color: var(--green-700); }
 
     /* ── Diagnosis result ────────────────────────────────────────────────── */
     #preview img {
-      max-width: 100%;
-      border-radius: .5rem;
-      margin-top: .75rem;
-      border: 2px solid var(--border);
+      width: 100%; max-height: 260px; object-fit: cover;
+      border-radius: .5rem; margin-top: .75rem; border: 1px solid var(--border);
     }
-    .confidence-bar {
-      height: 8px;
-      background: var(--green-100);
-      border-radius: 4px;
-      margin: .5rem 0 1rem;
-      overflow: hidden;
-    }
-    .confidence-fill { height: 100%; background: var(--green-500); border-radius: 4px; }
+    .conf-bar { height: 8px; background: var(--green-100); border-radius: 4px; margin: .4rem 0 .9rem; overflow: hidden; }
+    .conf-fill { height: 100%; border-radius: 4px; background: var(--green-500); }
 
-    /* Status badges */
     .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: .78rem;
-      font-weight: 600;
-      margin-bottom: 6px;
+      display: inline-block; padding: 2px 10px;
+      border-radius: 20px; font-size: .76rem; font-weight: 700;
+      margin: 0 4px 6px 0;
     }
-    .badge-demo   { background: var(--demo-bg);   color: var(--demo-text); }
-    .badge-kvk    { background: #fff3cd;           color: #856404;
-                    border: 1px solid #ffc107; }
+    .badge-demo  { background: var(--demo-bg);   color: var(--demo-text); }
+    .badge-kvk   { background: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+    .badge-real  { background: var(--green-100); color: var(--green-900); }
+
     .warn-box {
-      background: var(--warn-bg);
-      border-left: 3px solid var(--warn-border);
-      padding: .65rem .75rem;
-      border-radius: .4rem;
-      font-size: .88rem;
-      margin: .5rem 0;
+      background: var(--warn-bg); border-left: 3px solid var(--warn-bdr);
+      padding: .6rem .75rem; border-radius: .4rem; font-size: .87rem; margin: .5rem 0;
     }
-    .feedback-row { display: flex; gap: .5rem; margin-top: .75rem; }
+
+    .section-lbl {
+      font-size: .72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--green-500); margin-top: .75rem; margin-bottom: .2rem;
+    }
+    .section-body { font-size: .9rem; color: var(--text); line-height: 1.6; }
+
+    .feedback-row { display: flex; gap: .5rem; margin-top: .85rem; align-items: center; }
+    .feedback-row span { font-size: .83rem; color: var(--muted); }
+    #feedbackMsg { font-size: .82rem; color: var(--green-500); margin-top: .4rem; }
 
     /* ── Chat ────────────────────────────────────────────────────────────── */
-    .chat-messages {
-      min-height: 140px;
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .75rem;
-      background: var(--green-50);
+    .ctx-banner {
+      background: var(--green-100); border-radius: .4rem;
+      padding: .45rem .7rem; font-size: .82rem; color: var(--green-900);
+      margin-bottom: .75rem;
+    }
+    .chat-box {
+      min-height: 160px; max-height: 320px; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: .5rem;
+      padding: .75rem; background: var(--green-50);
+      display: flex; flex-direction: column; gap: .5rem;
       margin-bottom: .75rem;
     }
     .msg {
-      max-width: 85%;
-      padding: .55rem .75rem;
-      border-radius: .75rem;
-      margin-bottom: .5rem;
-      font-size: .92rem;
-      white-space: pre-wrap;
-      word-break: break-word;
+      max-width: 84%; padding: .55rem .8rem; border-radius: .75rem;
+      font-size: .9rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
     }
-    .msg.user      { margin-left: auto; background: var(--green-700); color: var(--white); }
-    .msg.assistant { margin-right: auto; background: var(--grey); border: 1px solid var(--border); }
-    .chat-input-row { display: flex; gap: .5rem; align-items: flex-end; }
-    .chat-input-row textarea { flex: 1; min-height: 70px; resize: vertical; }
+    .msg.user      { align-self: flex-end; background: var(--green-700); color: #fff; border-bottom-right-radius: 3px; }
+    .msg.assistant { align-self: flex-start; background: var(--white); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
+    .msg.thinking  { align-self: flex-start; color: var(--muted); font-style: italic; font-size: .85rem; }
 
-    /* ── Voice ───────────────────────────────────────────────────────────── */
-    .mic-btn {
-      width: 80px; height: 80px;
-      border-radius: 50%;
-      font-size: 1.75rem;
-      display: block;
-      margin: 1rem auto;
-    }
-    .mic-btn.recording {
-      background: var(--danger);
-      animation: pulse 1s infinite;
-    }
-    @keyframes pulse { 50% { transform: scale(1.05); } }
-    .voice-box {
-      background: var(--green-50);
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .75rem;
-      margin: .75rem 0;
-      font-size: .9rem;
-    }
-    .hint { font-size: .78rem; color: var(--muted); text-align: center; }
+    .chat-input-row { display: flex; gap: .5rem; align-items: flex-end; }
+    .chat-input-row textarea { flex: 1; min-height: 64px; resize: vertical; }
+
+    .disclaimer { font-size: .75rem; color: var(--muted); text-align: center; margin-top: .6rem; }
 
     /* ── Disease reference ───────────────────────────────────────────────── */
-    .disease-item { border: 1px solid var(--border); border-radius: .5rem; margin-bottom: .5rem; overflow: hidden; }
-    .disease-item summary {
-      padding: .65rem .75rem;
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--green-900);
-      background: var(--green-50);
-      list-style: none;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .d-item { border: 1px solid var(--border); border-radius: .5rem; margin-bottom: .5rem; overflow: hidden; }
+    .d-item summary {
+      padding: .6rem .8rem; cursor: pointer; font-weight: 600; font-size: .9rem;
+      color: var(--green-900); background: var(--green-50); list-style: none;
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .disease-item summary::after { content: "▾"; font-size: .8rem; }
-    .disease-item[open] summary::after { content: "▴"; }
-    .disease-body { padding: .75rem; font-size: .9rem; border-top: 1px solid var(--border); }
-    .disease-body p { margin: 0 0 .4rem; }
+    .d-item summary::after { content: "▾"; font-size: .75rem; }
+    .d-item[open] summary::after { content: "▴"; }
+    .d-body { padding: .75rem; font-size: .88rem; border-top: 1px solid var(--border); }
+    .d-body p { margin-bottom: .35rem; }
 
-    /* ── Misc ────────────────────────────────────────────────────────────── */
-    .error-text { color: var(--danger); font-size: .9rem; }
-    .disclaimer { margin-top: .75rem; font-size: .78rem; color: var(--muted); text-align: center; }
-    footer { text-align: center; padding: 1rem; font-size: .85rem; }
-    footer a { color: var(--green-700); }
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    footer { text-align: center; padding: 1rem; font-size: .82rem; color: var(--muted); }
+    footer a { color: var(--green-700); text-decoration: none; font-weight: 600; }
+    .error-text { color: var(--danger); font-size: .88rem; margin-top: .5rem; }
   </style>
 </head>
 <body>
 
 <header>
   <div class="container">
-    <h1>किसान मित्र — Kisan Mitra</h1>
-    <p>AI crop advisor for paddy farmers</p>
+    <h1>🌾 Kisan Mitra</h1>
+    <p>AI Paddy Disease Advisor — Classifier + Chat</p>
   </div>
 </header>
 
 <div class="container">
+  <div id="statusBar">Checking system…</div>
 
-  <!-- ── Section 1: Photo Diagnosis ─────────────────────────────────────── -->
-  <section class="card" id="diagnoseSection">
-    <h2>📷 Photo Diagnosis</h2>
-    <label>Village (optional):
+  <!-- ════════════════════════════════════════════════════════════════════
+       SECTION 1 — Photo Diagnosis
+       ════════════════════════════════════════════════════════════════════ -->
+  <section class="card">
+    <h2>📷 Diagnose Leaf Photo</h2>
+
+    <!-- Language picker — shared with chat -->
+    <div class="lang-row">
+      <button class="lang-btn active" data-lang="hi" onclick="setLang('hi',this)">हिंदी</button>
+      <button class="lang-btn"        data-lang="mr" onclick="setLang('mr',this)">मराठी</button>
+      <button class="lang-btn"        data-lang="en" onclick="setLang('en',this)">English</button>
+    </div>
+
+    <label>Village (optional — saved for pilot tracking)
       <input type="text" id="villageInput" placeholder="e.g. Tirunelveli">
     </label>
-    <label>Choose from gallery:
-      <input type="file" id="imageInput" accept="image/*">
+
+    <label>Choose photo from gallery
+      <input type="file" id="imageInput" accept="image/*" onchange="onFile(event)">
     </label>
-    <label>Capture with camera:
-      <input type="file" id="cameraInput" accept="image/*" capture="environment">
+    <label>Capture with camera
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="onFile(event)">
     </label>
-    <button id="diagnoseBtn" disabled>Diagnose</button>
+
     <div id="preview"></div>
-    <div id="result"></div>
+    <div id="diagError" class="error-text"></div>
+    <button class="btn btn-primary btn-block" id="diagnoseBtn" disabled onclick="runDiagnosis()">
+      Diagnose Plant
+    </button>
   </section>
 
-  <!-- ── Section 2: Text Chat ───────────────────────────────────────────── -->
-  <section class="card" id="chatSection">
-    <h2>💬 Text Chat</h2>
-    <div class="lang-row">
-      <label for="languageSelect">Language:</label>
-      <select id="languageSelect">
-        <option value="hi" selected>हिंदी (Hindi)</option>
-        <option value="mr">मराठी (Marathi)</option>
-        <option value="en">English</option>
-      </select>
+  <!-- Result card — hidden until diagnosis runs -->
+  <section class="card" id="resultCard" style="display:none">
+    <h2>🔬 Diagnosis Result</h2>
+    <div id="resultContent"></div>
+    <div class="feedback-row">
+      <span>Was this helpful?</span>
+      <button class="btn btn-outline" onclick="submitFeedback(true)">👍 Yes</button>
+      <button class="btn btn-outline" onclick="submitFeedback(false)">👎 No</button>
     </div>
-    <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+    <p id="feedbackMsg"></p>
+    <button class="btn btn-primary btn-block" onclick="askFollowUp()" style="margin-top:.6rem">
+      💬 Ask about this disease
+    </button>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       SECTION 2 — Text Chat (LangGraph + SambaNova)
+       ════════════════════════════════════════════════════════════════════ -->
+  <section class="card">
+    <h2>💬 Ask the Advisor</h2>
+    <div id="ctxBanner" class="ctx-banner" style="display:none"></div>
+    <div id="chatBox" class="chat-box" aria-live="polite"></div>
     <div class="chat-input-row">
-      <textarea id="chatInput" placeholder="अपना सवाल लिखें…"></textarea>
-      <button id="sendBtn">Send</button>
+      <textarea id="chatInput" placeholder="अपना सवाल लिखें…" onkeydown="chatKey(event)"></textarea>
+      <button class="btn btn-primary" id="sendBtn" onclick="sendChat()">➤</button>
     </div>
-    <p class="disclaimer">
-      सलाह हमेशा अपने KVK से जाँचें — Kisan Mitra AI है, विशेषज्ञ नहीं।
-    </p>
+    <p class="disclaimer">सलाह हमेशा अपने KVK से जाँचें — Kisan Mitra AI है, विशेषज्ञ नहीं।</p>
   </section>
 
-  <!-- ── Section 3: Voice Chat ──────────────────────────────────────────── -->
-  <section class="card" id="voiceSection">
-    <h2>🎤 Voice Chat</h2>
-    <p class="hint">Hold the button, speak your question, then release.</p>
-    <button class="mic-btn" id="micBtn" aria-label="Hold to record">🎤</button>
-    <p class="hint" id="voiceFallbackLabel" hidden>Using device voice (Bhashini/MLX not configured)</p>
-    <div id="voiceTranscript" class="voice-box" hidden></div>
-    <div id="voiceReply"      class="voice-box" hidden></div>
-  </section>
-
-  <!-- ── Section 4: Disease Reference ──────────────────────────────────── -->
-  <section class="card" id="referenceSection">
+  <!-- ════════════════════════════════════════════════════════════════════
+       SECTION 3 — Disease Reference (offline after first load)
+       ════════════════════════════════════════════════════════════════════ -->
+  <section class="card">
     <h2>📚 Disease Reference</h2>
-    <input type="text" id="diseaseSearch" placeholder="Search disease name…" style="margin-bottom:.75rem">
-    <div id="diseaseList"></div>
+    <input type="text" id="searchBox" placeholder="Search disease…" oninput="filterDiseases(this.value)">
+    <div id="diseaseList" style="margin-top:.75rem"></div>
   </section>
-
 </div>
 
 <footer>
-  <a href="/dashboard">Field team dashboard →</a>
+  <a href="/dashboard" target="_blank">Field team dashboard →</a>
 </footer>
 
 <script>
 "use strict";
 
-// ── Config ──────────────────────────────────────────────────────────────────
-const API = window.location.origin;         // All API calls go to the same origin
+// ── State ─────────────────────────────────────────────────────────────────────
+const API            = window.location.origin;
+let language         = "hi";
+let selectedFile     = null;
+let diagnosisId      = null;
+let diagnosisContext = null;   // { disease, confidence } — passed to /chat
+let chatHistory      = [];     // kept in memory, trimmed to last 12 messages
+let diseasesData     = [];
 
-// ── State ────────────────────────────────────────────────────────────────────
-let selectedFile         = null;
-let currentDiagnosisId   = null;
-let pendingCtx           = null;            // DiagnosisContext for the next chat message
-let conversationHistory  = [];              // Last N chat turns (trimmed to 6)
-let diseasesCache        = [];              // Loaded from /diseases once
-let mediaRecorder        = null;
-let audioChunks          = [];
-let isRecording          = false;
+// ── Language selector ─────────────────────────────────────────────────────────
+function setLang(lang, btn) {
+  language = lang;
+  document.querySelectorAll(".lang-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  const ph = { hi: "अपना सवाल लिखें…", mr: "आपला प्रश्न लिहा…", en: "Type your question…" };
+  document.getElementById("chatInput").placeholder = ph[lang] || ph.hi;
+}
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
-const languageSelect = document.getElementById("languageSelect");
-const villageInput   = document.getElementById("villageInput");
+// ── Health check ──────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const d   = await apiFetch("/health");
+    const bar = document.getElementById("statusBar");
 
-// ============================================================================
-// Section 4 — Disease Reference
-// Loaded once from /diseases, then filtered client-side (works offline after load)
-// ============================================================================
+    const modelLabel = d.model_mode === "tflite"
+      ? `✅ Classifier: ${d.model_arch} (${d.num_classes} classes)`
+      : "⚠️ Classifier: demo stub (place rice_disease_model.tflite in backend/models/)";
 
+    const chatLabel = d.chat_configured
+      ? `✅ Chat: ${d.chat_provider} / ${d.chat_model}`
+      : `❌ Chat: not configured (set ${d.chat_provider.toUpperCase()}_API_KEY)`;
+
+    bar.textContent = `${modelLabel}   |   ${chatLabel}`;
+    bar.style.background = (d.model_mode === "tflite" && d.chat_configured) ? "#d8f3dc" : "#fff3cd";
+    bar.style.color      = (d.model_mode === "tflite" && d.chat_configured) ? "#1b4332" : "#856404";
+  } catch {
+    document.getElementById("statusBar").textContent = "⚠️ Cannot reach backend on port 8000";
+  }
+}
+checkHealth();
+
+// ── Disease reference — load once, filter client-side ─────────────────────────
 async function loadDiseases() {
   try {
-    const res  = await fetch(`${API}/diseases`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    // /diseases returns { count, diseases: [{name, cause, ...}] }
-    diseasesCache = data.diseases ?? [];
-    renderDiseaseList("");
-  } catch (err) {
+    const d = await apiFetch("/diseases");
+    diseasesData = d.diseases ?? [];
+    renderDiseases("");
+  } catch {
     document.getElementById("diseaseList").innerHTML =
-      `<p class="error-text">Could not load disease list: ${err.message}</p>`;
+      '<p class="error-text">Could not load disease list.</p>';
   }
 }
+loadDiseases();
 
-function renderDiseaseList(query) {
-  const q    = query.toLowerCase();
-  const list = document.getElementById("diseaseList");
-  const items = diseasesCache.filter(d => d.name.toLowerCase().includes(q));
+function renderDiseases(query) {
+  const q     = query.toLowerCase();
+  const items = diseasesData.filter(d => d.name.toLowerCase().includes(q));
+  const list  = document.getElementById("diseaseList");
 
-  if (items.length === 0) {
-    list.innerHTML = `<p style="color:var(--muted)">No diseases match "${query}"</p>`;
+  if (!items.length) {
+    list.innerHTML = `<p style="color:var(--muted)">No diseases match "${esc(query)}"</p>`;
     return;
   }
-
-  list.innerHTML = items.map(d => {
-    const kvkBadge    = d.refer_to_kvk
-      ? `<span style="color:var(--danger);font-size:.8rem">⚠️ KVK</span>`
-      : "";
-    const precautions = d.precautions
-      ? `<p><strong>Precautions:</strong> ${escHtml(d.precautions)}</p>`
-      : "";
-    const severity = d.severity_levels?.length
-      ? `<p><strong>Severity:</strong> ${d.severity_levels.join(" / ")}</p>`
-      : "";
-
-    return `
-      <details class="disease-item">
-        <summary>${escHtml(d.name)} ${kvkBadge}</summary>
-        <div class="disease-body">
-          <p><strong>Cause:</strong> ${escHtml(d.cause)}</p>
-          ${severity}
-          <p><strong>Organic treatment:</strong> ${escHtml(d.organic_treatment)}</p>
-          <p><strong>Chemical treatment:</strong> ${escHtml(d.chemical_treatment)}</p>
-          ${precautions}
-        </div>
-      </details>`;
-  }).join("");
+  list.innerHTML = items.map(d => `
+    <details class="d-item">
+      <summary>
+        ${esc(d.name)}
+        ${d.refer_to_kvk ? '<span class="badge badge-kvk">⚠️ KVK</span>' : ""}
+      </summary>
+      <div class="d-body">
+        <p><strong>Cause:</strong> ${esc(d.cause)}</p>
+        ${d.severity_levels?.length ? `<p><strong>Severity:</strong> ${esc(d.severity_levels.join(" / "))}</p>` : ""}
+        <p><strong>Organic:</strong> ${esc(d.organic_treatment)}</p>
+        <p><strong>Chemical:</strong> ${esc(d.chemical_treatment)}</p>
+        ${d.precautions ? `<p><strong>Precautions:</strong> ${esc(d.precautions)}</p>` : ""}
+      </div>
+    </details>`).join("");
 }
 
-document.getElementById("diseaseSearch")
-  .addEventListener("input", e => renderDiseaseList(e.target.value));
+function filterDiseases(q) { renderDiseases(q); }
 
-loadDiseases();   // load on page open
-
-// ============================================================================
-// Section 1 — Photo Diagnosis
-// ============================================================================
-
-function handleFileSelect(file) {
+// ── Photo diagnosis ───────────────────────────────────────────────────────────
+function onFile(e) {
+  const file = e.target.files[0];
   if (!file) return;
   selectedFile = file;
-  document.getElementById("diagnoseBtn").disabled = false;
-  document.getElementById("result").innerHTML = "";
   document.getElementById("preview").innerHTML =
     `<img src="${URL.createObjectURL(file)}" alt="Leaf photo">`;
+  document.getElementById("diagnoseBtn").disabled = false;
+  document.getElementById("diagError").textContent = "";
+  document.getElementById("resultCard").style.display = "none";
 }
 
-document.getElementById("imageInput")
-  .addEventListener("change", e => handleFileSelect(e.target.files[0]));
-document.getElementById("cameraInput")
-  .addEventListener("change", e => handleFileSelect(e.target.files[0]));
-
-document.getElementById("diagnoseBtn").addEventListener("click", async () => {
+async function runDiagnosis() {
   if (!selectedFile) return;
-
-  const btn    = document.getElementById("diagnoseBtn");
-  const result = document.getElementById("result");
+  const btn = document.getElementById("diagnoseBtn");
   btn.disabled = true;
   btn.textContent = "Diagnosing…";
-  result.innerHTML = "<p>Running diagnosis…</p>";
+  document.getElementById("diagError").textContent = "";
 
-  const formData = new FormData();
-  formData.append("image",    selectedFile);
-  formData.append("language", languageSelect.value);
-  const village = villageInput.value.trim();
-  if (village) formData.append("village", village);
+  const form = new FormData();
+  form.append("image",    selectedFile);
+  form.append("language", language);
+  const village = document.getElementById("villageInput").value.trim();
+  if (village) form.append("village", village);
 
   try {
-    const res  = await fetch(`${API}/diagnose`, { method: "POST", body: formData });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || `Server error (${res.status})`);
-    displayResult(data);
+    const data = await apiFetch("/diagnose", { method: "POST", body: form });
+    renderResult(data);
   } catch (err) {
-    result.innerHTML = `<p class="error-text">❌ ${escHtml(err.message)}</p>`;
+    document.getElementById("diagError").textContent = "❌ " + err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = "Diagnose";
+    btn.textContent = "Diagnose Plant";
   }
-});
+}
 
-function displayResult(data) {
-  const t = data.treatment;
+function renderResult(d) {
+  const t = d.treatment;
+  diagnosisId      = d.diagnosis_id;
+  diagnosisContext = { disease: d.disease, confidence: d.confidence };
 
-  // Save for feedback and chat context
-  currentDiagnosisId = data.diagnosis_id;
-  pendingCtx = { disease: data.disease, confidence: data.confidence };
+  // Update chat context banner
+  const banner = document.getElementById("ctxBanner");
+  banner.style.display = "block";
+  banner.textContent   = `📋 Last diagnosis: ${d.disease} (${d.confidence.toFixed(1)}%)`;
 
-  // Badges
-  const demoBadge = data.model_mode === "random"
-    ? `<span class="badge badge-demo">Demo mode — not a real prediction</span><br>`
-    : "";
+  const modeBadge = d.model_mode === "random"
+    ? `<span class="badge badge-demo">Demo — not a real prediction</span>`
+    : `<span class="badge badge-real">✓ TFLite classifier</span>`;
   const kvkBadge = t.refer_to_kvk
-    ? `<div class="badge badge-kvk">⚠️ Severe disease — contact your nearest KVK immediately</div>`
+    ? `<span class="badge badge-kvk">⚠️ Consult KVK immediately</span>`
     : "";
-
-  // Low-confidence warning
-  const lowConfWarn = !data.safe_to_act && data.low_confidence_message
-    ? `<div class="warn-box">⚠️ ${escHtml(data.low_confidence_message)}</div>`
-    : "";
-
-  // Treatment (skip for "Normal")
-  const isNormal = data.disease === "Normal";
+  const lowConf = !d.safe_to_act && d.low_confidence_message
+    ? `<div class="warn-box">⚠️ ${esc(d.low_confidence_message)}</div>` : "";
+  const isNormal = d.disease === "Normal";
   const treatment = isNormal
-    ? `<p style="color:var(--green-700)">✅ Plant looks healthy. Keep monitoring regularly.</p>`
+    ? `<p style="color:var(--green-700);margin-top:.5rem">✅ Plant looks healthy. Keep monitoring regularly.</p>`
     : `
-      <p><strong>Cause:</strong> ${escHtml(t.cause)}</p>
-      <p><strong>Organic treatment:</strong> ${escHtml(t.organic_treatment)}</p>
-      <p><strong>Chemical treatment:</strong> ${escHtml(t.chemical_treatment)}</p>
-      ${t.precautions ? `<p><strong>Precautions:</strong> ${escHtml(t.precautions)}</p>` : ""}
+      <div class="section-lbl">Cause</div>
+      <div class="section-body">${esc(t.cause)}</div>
+      <div class="section-lbl">Organic treatment</div>
+      <div class="section-body">${esc(t.organic_treatment)}</div>
+      <div class="section-lbl">Chemical treatment</div>
+      <div class="section-body">${esc(t.chemical_treatment)}</div>
+      ${t.precautions ? `<div class="section-lbl">Precautions</div><div class="section-body">${esc(t.precautions)}</div>` : ""}
     `;
 
-  document.getElementById("result").innerHTML = `
-    ${demoBadge}
-    <h3>${escHtml(data.disease)}</h3>
-    <p>Confidence: ${data.confidence.toFixed(1)}%</p>
-    <div class="confidence-bar">
-      <div class="confidence-fill" style="width:${Math.min(data.confidence, 100)}%"></div>
-    </div>
-    ${lowConfWarn}
-    ${kvkBadge}
+  document.getElementById("resultContent").innerHTML = `
+    <div>${modeBadge}${kvkBadge}</div>
+    <h3 style="font-size:1.3rem;color:var(--green-900);margin:.3rem 0">${esc(d.disease)}</h3>
+    <p style="font-size:.85rem;color:var(--muted)">Confidence: ${d.confidence.toFixed(1)}%</p>
+    <div class="conf-bar"><div class="conf-fill" style="width:${Math.min(d.confidence,100)}%"></div></div>
+    ${lowConf}
     ${treatment}
-    <div class="feedback-row">
-      <button class="btn-outline" onclick="submitFeedback(true)">👍 Helpful</button>
-      <button class="btn-outline" onclick="submitFeedback(false)">👎 Not helpful</button>
-    </div>
-    <p id="feedbackMsg" style="font-size:.85rem;color:var(--muted)"></p>
   `;
-
-  // Scroll to chat so farmer can ask follow-up questions
-  document.getElementById("chatSection").scrollIntoView({ behavior: "smooth" });
+  document.getElementById("feedbackMsg").textContent = "";
+  document.getElementById("resultCard").style.display = "block";
+  document.getElementById("resultCard").scrollIntoView({ behavior: "smooth" });
 }
 
 async function submitFeedback(helpful) {
-  if (!currentDiagnosisId) return;
+  if (!diagnosisId) return;
   try {
-    const res = await fetch(`${API}/diagnose/feedback`, {
+    await apiFetch("/diagnose/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ diagnosis_id: currentDiagnosisId, helpful }),
+      body: JSON.stringify({ diagnosis_id: diagnosisId, helpful }),
     });
-    const msg = document.getElementById("feedbackMsg");
-    if (res.ok) {
-      msg.textContent = "Thank you for your feedback!";
-    } else {
-      const d = await res.json().catch(() => ({}));
-      msg.textContent = d.detail || "Feedback not saved.";
-    }
-  } catch {
-    // Non-critical — silently ignore
-  }
+    document.getElementById("feedbackMsg").textContent = "Thank you for your feedback!";
+  } catch { /* non-critical */ }
 }
-window.submitFeedback = submitFeedback;   // expose for onclick= in injected HTML
 
-// ============================================================================
-// Section 2 — Text Chat
-// ============================================================================
+function askFollowUp() {
+  document.querySelector("section.card:nth-of-type(3)").scrollIntoView({ behavior: "smooth" });
+  document.getElementById("chatInput").focus();
+}
 
-function appendMsg(role, content) {
-  const div = document.createElement("div");
-  div.className = `msg ${role}`;
-  div.textContent = content;
-  const box = document.getElementById("chatMessages");
-  box.appendChild(div);
+// ── Text chat ─────────────────────────────────────────────────────────────────
+function chatKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+function addMsg(role, text) {
+  const box = document.getElementById("chatBox");
+  const el  = document.createElement("div");
+  el.className = "msg " + role;
+  el.textContent = text;
+  box.appendChild(el);
   box.scrollTop = box.scrollHeight;
+  return el;
 }
 
 async function sendChat() {
-  const input   = document.getElementById("chatInput");
-  const message = input.value.trim();
-  if (!message) return;
+  const input = document.getElementById("chatInput");
+  const msg   = input.value.trim();
+  if (!msg) return;
 
-  const language = languageSelect.value;
-  appendMsg("user", message);
   input.value = "";
   document.getElementById("sendBtn").disabled = true;
+  addMsg("user", msg);
+  chatHistory.push({ role: "user", content: msg });
 
-  const payload = {
-    message,
-    language,
-    conversation_history: conversationHistory,
-  };
-  // Pass diagnosis context once after a diagnosis, then clear it
-  if (pendingCtx) {
-    payload.diagnosis_context = pendingCtx;
-    pendingCtx = null;
-  }
+  const thinking = addMsg("thinking", "Thinking…");
 
   try {
-    const res  = await fetch(`${API}/chat`, {
+    const data = await apiFetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        message:              msg,
+        language,
+        diagnosis_context:    diagnosisContext,  // null until a diagnosis has been run
+        conversation_history: chatHistory.slice(-12),
+      }),
     });
-    const data = await res.json().catch(() => ({}));
 
-    if (res.status === 503) {
-      appendMsg("assistant", "Chat not available. Contact your field coordinator or KVK.");
-      return;
-    }
-    if (!res.ok) throw new Error(data.detail || `Chat error (${res.status})`);
+    thinking.remove();
+    addMsg("assistant", data.reply);
+    chatHistory.push({ role: "assistant", content: data.reply });
+    if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
 
-    appendMsg("assistant", data.reply);
+    // Only pass diagnosis context on the first follow-up question, then clear it
+    // so subsequent questions are treated as general farming questions
+    diagnosisContext = null;
+    document.getElementById("ctxBanner").style.display = "none";
 
-    // Keep only the last 6 turns in memory (service also trims, but keep client lean too)
-    conversationHistory.push(
-      { role: "user",      content: message    },
-      { role: "assistant", content: data.reply },
-    );
-    if (conversationHistory.length > 12) {
-      conversationHistory = conversationHistory.slice(-12);
-    }
   } catch (err) {
-    appendMsg("assistant", `Error: ${err.message}`);
+    thinking.remove();
+    addMsg("assistant",
+      err.status === 503
+        ? "Chat not available. Check that SAMBANOVA_API_KEY is set in .env and restart the server."
+        : "Error: " + err.message
+    );
   } finally {
     document.getElementById("sendBtn").disabled = false;
   }
 }
 
-document.getElementById("sendBtn").addEventListener("click", sendChat);
-document.getElementById("chatInput").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
-});
-
-// ============================================================================
-// Section 3 — Voice Chat
-// ============================================================================
-
-const micBtn             = document.getElementById("micBtn");
-const voiceFallbackLabel = document.getElementById("voiceFallbackLabel");
-const voiceTranscript    = document.getElementById("voiceTranscript");
-const voiceReply         = document.getElementById("voiceReply");
-
-// ============================================================================
-// Voice — MediaRecorder (server STT path)
-//
-// FIX 1: mimeType is chosen at runtime — audio/webm is not supported on Safari/iOS.
-//         We pick the first type the browser actually supports.
-// FIX 2: mediaRecorder.onstop is assigned BEFORE calling .stop() to avoid a race
-//         condition where onstop fires before the handler is registered on fast devices.
-// ============================================================================
-
-/** Return the best supported audio MIME type for MediaRecorder on this browser. */
-function getSupportedMimeType() {
-  const types = [
-    "audio/webm;codecs=opus",   // Chrome, Edge, Firefox
-    "audio/webm",               // Chrome fallback
-    "audio/ogg;codecs=opus",    // Firefox
-    "audio/mp4",                // Safari 14.1+
-    "",                         // let browser choose
-  ];
-  for (const type of types) {
-    if (!type || MediaRecorder.isTypeSupported(type)) return type;
+// ── API helper ────────────────────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const res  = await fetch(API + path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.detail || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
-  return "";
+  return data;
 }
 
-async function startRecording() {
-  // Guard: don't start a second recorder if one is already running
-  if (isRecording) return;
-
-  try {
-    const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mimeType = getSupportedMimeType();
-
-    mediaRecorder = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream);
-
-    audioChunks = [];
-    mediaRecorder.ondataavailable = e => {
-      if (e.data && e.data.size > 0) audioChunks.push(e.data);
-    };
-
-    // Request data every 250ms so we get chunks even on short recordings
-    mediaRecorder.start(250);
-    isRecording = true;
-    micBtn.classList.add("recording");
-    micBtn.textContent = "⏹";
-  } catch (err) {
-    // DOMException: NotAllowedError = user denied permission
-    // DOMException: NotFoundError   = no microphone found
-    const msg = err.name === "NotAllowedError"
-      ? "Microphone access denied. Please allow microphone in browser settings."
-      : `Could not access microphone: ${err.message}`;
-    showVoiceError(msg);
-  }
-}
-
-function stopRecording() {
-  if (!mediaRecorder || !isRecording) return;
-  isRecording = false;
-  micBtn.classList.remove("recording");
-  micBtn.textContent = "🎤";
-
-  // FIX: assign onstop BEFORE calling stop() to avoid the race condition
-  // where onstop fires immediately on some browsers before we assign the handler.
-  mediaRecorder.onstop = async () => {
-    // Use the actual MIME type the recorder used (may differ from what we requested)
-    const mimeType = mediaRecorder.mimeType || "audio/webm";
-    const blob     = new Blob(audioChunks, { type: mimeType });
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());  // release mic
-    await processVoiceBlob(blob, mimeType);
-  };
-
-  mediaRecorder.stop();
-}
-
-// Hold-to-record on desktop (mousedown/up) and mobile (touchstart/end)
-micBtn.addEventListener("mousedown",  startRecording);
-micBtn.addEventListener("mouseup",    stopRecording);
-micBtn.addEventListener("mouseleave", () => { if (isRecording) stopRecording(); });
-micBtn.addEventListener("touchstart", e => { e.preventDefault(); startRecording(); }, { passive: false });
-micBtn.addEventListener("touchend",   e => { e.preventDefault(); stopRecording(); },  { passive: false });
-
-async function processVoiceBlob(blob, mimeType) {
-  const language = languageSelect.value;
-  voiceTranscript.hidden = false;
-  voiceReply.hidden      = false;
-  voiceTranscript.textContent = "Processing…";
-  voiceReply.textContent      = "";
-  voiceFallbackLabel.hidden   = true;
-
-  // Pick a filename extension that matches the actual MIME type
-  // Bhashini uses the filename extension to determine the audio format
-  const ext      = mimeType.includes("mp4") ? "mp4"
-                 : mimeType.includes("ogg") ? "ogg"
-                 : "webm";
-  const filename = `recording.${ext}`;
-
-  const formData = new FormData();
-  formData.append("audio",    blob, filename);
-  formData.append("language", language);
-  if (pendingCtx) {
-    formData.append("diagnosis_context", JSON.stringify(pendingCtx));
-    pendingCtx = null;
-  }
-
-  try {
-    const res = await fetch(`${API}/voice/chat`, { method: "POST", body: formData });
-
-    if (res.status === 503) {
-      // Server STT not configured → use browser Web Speech API
-      voiceFallbackLabel.hidden   = false;
-      voiceTranscript.textContent = "Using device speech recognition…";
-      voiceBrowserFallback(language);   // not awaited — SR is event-driven
-      return;
-    }
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.detail || `Server error (HTTP ${res.status})`);
-    }
-
-    voiceTranscript.textContent = `You said: ${escHtml(data.transcript)}`;
-    voiceReply.textContent      = data.reply_text;
-    playTTS(data.reply_text, language);   // non-blocking — audio plays in background
-
-  } catch (err) {
-    showVoiceError(err.message);
-    // Don't auto-trigger browser fallback on a real error (e.g. network down)
-    // — show the error so the farmer knows something went wrong
-  }
-}
-
-// ============================================================================
-// TTS — Bhashini server, with browser speechSynthesis fallback
-// ============================================================================
-
-function playTTS(text, language) {
-  // Non-blocking: fire-and-forget. Errors fall back to browser TTS silently.
-  fetch(`${API}/voice/tts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, language }),
-  })
-    .then(res => {
-      if (res.status === 503 || !res.ok) {
-        browserSpeak(text);   // Bhashini TTS not configured
-        return null;
-      }
-      return res.blob();
-    })
-    .then(blob => {
-      if (!blob) return;
-      const audio = new Audio(URL.createObjectURL(blob));
-      audio.onerror = () => browserSpeak(text);   // audio decode failed → browser TTS
-      audio.play().catch(() => browserSpeak(text));
-    })
-    .catch(() => browserSpeak(text));
-}
-
-function browserSpeak(text) {
-  if (!window.speechSynthesis) return;
-  speechSynthesis.cancel();   // stop any ongoing speech first
-  const utt = new SpeechSynthesisUtterance(text);
-  speechSynthesis.speak(utt);
-}
-
-// ============================================================================
-// Browser Web Speech API fallback
-// Called when server returns 503 (STT not configured server-side).
-//
-// FIX: voiceBrowserFallback is NOT async — SpeechRecognition is event-driven,
-//      not promise-based. The results arrive in onresult which we handle correctly.
-// ============================================================================
-
-function voiceBrowserFallback(language) {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    voiceTranscript.textContent =
-      "Voice not available on this browser. Try Chrome or Edge, or use text chat instead.";
-    return;
-  }
-
-  const rec  = new SR();
-  rec.lang   = { mr: "mr-IN", en: "en-IN", hi: "hi-IN" }[language] ?? "hi-IN";
-  rec.continuous      = false;
-  rec.interimResults  = false;
-  rec.maxAlternatives = 1;
-
-  voiceTranscript.textContent = "Listening… (speak now)";
-
-  rec.onresult = e => {
-    const transcript = e.results[0][0].transcript.trim();
-    if (!transcript) {
-      voiceTranscript.textContent = "Could not hear anything. Please try again.";
-      return;
-    }
-    voiceTranscript.textContent = `You said: ${escHtml(transcript)}`;
-    voiceReply.textContent      = "Thinking…";
-
-    // Send the transcript to /chat (text pipeline, no audio upload)
-    fetch(`${API}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message:              transcript,
-        language,
-        conversation_history: [],
-      }),
-    })
-      .then(res => res.json().then(d => ({ ok: res.ok, status: res.status, d })))
-      .then(({ ok, status, d }) => {
-        if (status === 503) {
-          voiceReply.textContent = "Chat not available. Contact your field coordinator.";
-          return;
-        }
-        if (!ok) throw new Error(d.detail || "Chat error");
-        voiceReply.textContent = d.reply;
-        browserSpeak(d.reply);
-      })
-      .catch(err => {
-        voiceReply.textContent = `Error: ${err.message}`;
-      });
-  };
-
-  rec.onerror = e => {
-    const msgs = {
-      "not-allowed": "Microphone access denied. Allow it in browser settings.",
-      "no-speech":   "No speech detected. Hold the button and speak clearly.",
-      "network":     "Network error during speech recognition. Check your connection.",
-      "aborted":     "Speech recognition was stopped.",
-    };
-    voiceTranscript.textContent = msgs[e.error] ?? `Speech error: ${e.error}`;
-  };
-
-  rec.onend = () => {
-    // If transcript was never populated, show a hint
-    if (voiceTranscript.textContent === "Listening… (speak now)") {
-      voiceTranscript.textContent = "No speech detected. Try again.";
-    }
-  };
-
-  rec.start();
-}
-
-function showVoiceError(msg) {
-  voiceTranscript.hidden = false;
-  voiceReply.hidden      = false;
-  voiceTranscript.textContent = `❌ ${msg}`;
-  voiceReply.textContent      = "";
-}
-
-// ============================================================================
-// Utility
-// ============================================================================
-
-/** Escape user/API text before injecting into innerHTML to prevent XSS. */
-function escHtml(str) {
-  if (!str) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+// ── XSS-safe HTML escape ──────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 </script>
 </body>

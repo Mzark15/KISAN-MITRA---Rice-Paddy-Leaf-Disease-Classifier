@@ -1,37 +1,45 @@
 """
-chat_service.py — LLM chat grounded in diseases.json
+chat_service.py — LangGraph-powered chat for Kisan Mitra
 
-Supports four providers: SambaNova (default), Gemini, OpenAI, Anthropic.
-Switch provider: set LLM_PROVIDER env var.
-Switch model:    set SAMBANOVA_MODEL / GEMINI_MODEL / OPENAI_MODEL / ANTHROPIC_MODEL env var.
+Architecture (graph nodes):
+  classify_intent → select_prompt → generate_response
 
-The system prompt injects the full diseases.json so the AI can only give advice
-that exists in the knowledge base — it cannot hallucinate pesticide doses or chemicals.
+Node 1 — classify_intent
+  Reads the farmer's message and decides what kind of question it is:
+    "disease_specific"  — asking about the diagnosed disease (diagnosis_context present)
+    "general_farming"   — general paddy farming question
+    "off_topic"         — not about farming at all
 
-To add a new provider:
-  1. Add its key name to PROVIDER_KEYS below.
-  2. Write a _generate_<provider>() function following the existing pattern.
-  3. Add a branch to generate_reply().
+Node 2 — select_prompt
+  Builds a dynamic system prompt based on:
+    - The intent class
+    - The specific diagnosed disease (from diagnosis_context)
+    - Full disease treatment data from diseases.json (only the relevant disease, not all 13)
+  This keeps the prompt focused and the LLM grounded.
+
+Node 3 — generate_response
+  Calls the configured LLM provider with the dynamic prompt and returns the reply.
+
+Provider: set LLM_PROVIDER env var (sambanova | gemini | openai | anthropic)
+Model:    set SAMBANOVA_MODEL / GEMINI_MODEL / OPENAI_MODEL / ANTHROPIC_MODEL
 """
 
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Literal, Optional, TypedDict
 
 from schemas import ChatMessage, DiagnosisContext
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration — change these env vars, not the code
+# Configuration
 # ---------------------------------------------------------------------------
 
-# Which LLM provider to use. Options: sambanova | gemini | openai | anthropic
 LLM_PROVIDER_ENV = "LLM_PROVIDER"
 
-# Map of provider name → env var that holds its API key
 PROVIDER_KEYS: dict[str, str] = {
     "sambanova": "SAMBANOVA_API_KEY",
     "gemini":    "GEMINI_API_KEY",
@@ -39,7 +47,6 @@ PROVIDER_KEYS: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
 }
 
-# Per-provider default model names (overridable via env)
 DEFAULT_MODELS: dict[str, str] = {
     "sambanova": "Meta-Llama-3.1-8B-Instruct",
     "gemini":    "gemini-2.0-flash",
@@ -48,34 +55,12 @@ DEFAULT_MODELS: dict[str, str] = {
 }
 
 SAMBANOVA_BASE_URL = "https://api.sambanova.ai/v1"
-
-MAX_HISTORY_MESSAGES = 6     # Maximum number of past turns sent to the LLM (keeps token usage low)
-MAX_OUTPUT_TOKENS    = 300   # Short answers only — farmers need simple, actionable advice
+MAX_HISTORY        = 6
+MAX_TOKENS         = 400
 
 DISEASES_FILE = Path(__file__).resolve().parent / "diseases.json"
 
-# ---------------------------------------------------------------------------
-# System prompt — the core of the grounding mechanism
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT_TEMPLATE = """\
-You are Kisan Mitra, a trusted AI advisor for paddy (rice) farmers in India.
-
-STRICT RULES — follow these exactly:
-1. Only answer questions about paddy/rice farming. For anything else, politely say you only help with rice crops.
-2. Always reply in the SAME language the farmer used. Hindi → Hindi. Marathi → Marathi. English → English.
-3. All treatment advice MUST come only from the KNOWLEDGE BASE below. Never invent dosages or chemicals.
-4. Keep answers to 3–5 sentences. Simple words. No jargon.
-5. For Tungro or Bacterial Panicle Blight, always end with: "अपने नजदीकी KVK या कृषि अधिकारी से सलाह लें।"
-6. If a diagnosis_context is given in the message, give advice specific to that disease.
-
---- KNOWLEDGE BASE ---
-{diseases_json}
---- END KNOWLEDGE BASE ---
-"""
-
-# Fallback error messages per language (used when the LLM call fails)
-ERROR_MESSAGES: dict[str, str] = {
+ERROR_MESSAGES = {
     "hi": "क्षमा करें, अभी उत्तर नहीं दे पा रहे। कृपया थोड़ी देर बाद फिर कोशिश करें।",
     "mr": "क्षमस्व, आत्ता उत्तर देऊ शकत नाही. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.",
     "en": "Sorry, we could not get an answer right now. Please try again later.",
@@ -86,221 +71,361 @@ ERROR_MESSAGES: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 class ChatNotConfiguredError(Exception):
-    """Raised when no API key is set for the active provider."""
+    """No API key set for the active provider."""
 
 class ChatServiceError(Exception):
-    """Raised when the LLM API call fails (network error, rate limit, bad response, etc.)."""
+    """LLM API call failed."""
 
 # ---------------------------------------------------------------------------
-# Internal state
+# Knowledge base
 # ---------------------------------------------------------------------------
 
-_diseases_json: Optional[str] = None   # Loaded once at startup by init_knowledge_base()
+_diseases: Optional[dict[str, Any]] = None
+
+
+def init_knowledge_base() -> None:
+    """Load diseases.json once at startup."""
+    global _diseases
+    if not DISEASES_FILE.exists():
+        raise FileNotFoundError(
+            f"diseases.json not found at {DISEASES_FILE}. "
+            "This file must exist for safe chat responses."
+        )
+    with open(DISEASES_FILE, "r", encoding="utf-8") as f:
+        _diseases = json.load(f)
+    logger.info("Knowledge base loaded: %d diseases", len(_diseases))
+
+
+def _get_diseases() -> dict[str, Any]:
+    if _diseases is None:
+        init_knowledge_base()
+    return _diseases
+
+
+def _disease_entry(disease_name: str) -> Optional[dict]:
+    return _get_diseases().get(disease_name)
+
+
+def _all_diseases_summary() -> str:
+    return ", ".join(_get_diseases().keys())
+
+
+# ---------------------------------------------------------------------------
+# LangGraph state
+# ---------------------------------------------------------------------------
+
+IntentType = Literal["disease_specific", "general_farming", "off_topic"]
+
+
+class GraphState(TypedDict):
+    message:           str
+    language:          str
+    diagnosis_context: Optional[DiagnosisContext]
+    history:           list[ChatMessage]
+    intent:            Optional[IntentType]
+    system_prompt:     Optional[str]
+    reply:             Optional[str]
+
+
+# ---------------------------------------------------------------------------
+# Prompt templates — edit these to change LLM behaviour
+# ---------------------------------------------------------------------------
+
+DISEASE_SPECIFIC_PROMPT = """\
+You are Kisan Mitra, a trusted AI advisor for paddy (rice) farmers in India.
+
+The farmer's plant has been diagnosed with: {disease_name}
+Diagnosis confidence: {confidence:.1f}%
+
+RULES:
+1. Reply in {language_name}. Match the farmer's language exactly.
+2. Give advice ONLY based on the treatment data below. Do not invent chemicals or dosages.
+3. Keep your answer to 4-6 sentences. Use simple, practical words.
+4. If severity is High or disease is Tungro or Bacterial Panicle Blight, end with:
+   "अपने नजदीकी KVK या कृषि विशेषज्ञ से मिलें।" (or equivalent in reply language).
+
+DISEASE DATA for {disease_name}:
+  Cause: {cause}
+  Severity levels: {severity}
+  Organic treatment: {organic}
+  Chemical treatment: {chemical}
+  Precautions: {precautions}
+"""
+
+GENERAL_FARMING_PROMPT = """\
+You are Kisan Mitra, a trusted AI advisor for paddy (rice) farmers in India.
+
+RULES:
+1. Reply in {language_name}. Match the farmer's language exactly.
+2. Only answer questions about paddy/rice farming.
+3. For treatment advice, only mention standard agronomic practice. Do not invent dosages.
+4. Keep answers to 4-6 sentences. Simple words, no jargon.
+5. For serious disease questions, recommend consulting the local KVK.
+
+Paddy diseases you can discuss: {disease_list}
+"""
+
+OFF_TOPIC_PROMPT = """\
+You are Kisan Mitra, an AI advisor that ONLY helps with paddy/rice farming.
+Reply in {language_name}.
+Politely tell the farmer you can only help with paddy crop questions.
+Keep it to 2 sentences.
+"""
+
+LANGUAGE_NAMES = {"hi": "Hindi", "mr": "Marathi", "en": "English"}
+
+
+# ---------------------------------------------------------------------------
+# LangGraph nodes
+# ---------------------------------------------------------------------------
+
+def classify_intent(state: GraphState) -> GraphState:
+    """
+    Node 1: Classify the query — no LLM call, pure logic.
+
+    To extend: add more keyword lists or a lightweight ML classifier here.
+    """
+    msg = state["message"].lower()
+    ctx = state["diagnosis_context"]
+
+    off_topic_keywords = [
+        "cricket", "weather", "news", "politics", "movie", "song",
+        "football", "stock", "share market", "recipe",
+    ]
+    if any(k in msg for k in off_topic_keywords):
+        return {**state, "intent": "off_topic"}
+
+    # If the farmer has a diagnosis result open, treat as disease-specific
+    if ctx is not None:
+        return {**state, "intent": "disease_specific"}
+
+    return {**state, "intent": "general_farming"}
+
+
+def select_prompt(state: GraphState) -> GraphState:
+    """
+    Node 2: Build the dynamic system prompt for this specific query.
+
+    disease_specific → only injects the one relevant disease's data
+    general_farming  → injects disease name list only
+    off_topic        → polite refusal template
+    """
+    intent    = state["intent"]
+    lang_name = LANGUAGE_NAMES.get(state["language"], "English")
+
+    if intent == "disease_specific":
+        ctx   = state["diagnosis_context"]
+        entry = _disease_entry(ctx.disease) if ctx else None
+        if ctx and entry:
+            prompt = DISEASE_SPECIFIC_PROMPT.format(
+                disease_name=ctx.disease,
+                confidence=ctx.confidence,
+                language_name=lang_name,
+                cause=entry.get("cause", "Unknown"),
+                severity=", ".join(entry.get("severity_levels", [])) or "varies",
+                organic=entry.get("organic_treatment", ""),
+                chemical=entry.get("chemical_treatment", ""),
+                precautions=entry.get("precautions") or "Follow label instructions carefully.",
+            )
+        else:
+            prompt = GENERAL_FARMING_PROMPT.format(
+                language_name=lang_name,
+                disease_list=_all_diseases_summary(),
+            )
+
+    elif intent == "off_topic":
+        prompt = OFF_TOPIC_PROMPT.format(language_name=lang_name)
+
+    else:
+        prompt = GENERAL_FARMING_PROMPT.format(
+            language_name=lang_name,
+            disease_list=_all_diseases_summary(),
+        )
+
+    return {**state, "system_prompt": prompt}
+
+
+def generate_response(state: GraphState) -> GraphState:
+    """Node 3: Call the LLM with the dynamic prompt."""
+    provider = get_provider()
+    history  = state["history"][-MAX_HISTORY:]
+
+    generators = {
+        "sambanova": _generate_sambanova,
+        "gemini":    _generate_gemini,
+        "openai":    _generate_openai,
+        "anthropic": _generate_anthropic,
+    }
+    fn = generators.get(provider)
+    if fn is None:
+        raise ChatNotConfiguredError(
+            f"Unknown LLM_PROVIDER '{provider}'. Valid: {', '.join(generators)}"
+        )
+
+    reply = fn(
+        system_prompt=state["system_prompt"],
+        user_msg=state["message"],
+        history=history,
+    )
+    return {**state, "reply": reply}
+
+
+# ---------------------------------------------------------------------------
+# Build LangGraph
+# ---------------------------------------------------------------------------
+
+def _build_graph():
+    """
+    Compile the three-node graph.
+
+    To add a node (e.g. a safety check):
+      1. Write: def safety_check(state: GraphState) -> GraphState
+      2. graph.add_node("safety_check", safety_check)
+      3. graph.add_edge("select_prompt", "safety_check")
+         graph.add_edge("safety_check", "generate_response")
+    """
+    from langgraph.graph import END, StateGraph
+
+    g = StateGraph(GraphState)
+    g.add_node("classify_intent",   classify_intent)
+    g.add_node("select_prompt",     select_prompt)
+    g.add_node("generate_response", generate_response)
+
+    g.set_entry_point("classify_intent")
+    g.add_edge("classify_intent",   "select_prompt")
+    g.add_edge("select_prompt",     "generate_response")
+    g.add_edge("generate_response", END)
+
+    return g.compile()
+
+
+_graph = None
+
+
+def _get_graph():
+    global _graph
+    if _graph is None:
+        _graph = _build_graph()
+    return _graph
 
 
 # ---------------------------------------------------------------------------
 # Public helpers
 # ---------------------------------------------------------------------------
 
-def init_knowledge_base() -> None:
-    """
-    Load diseases.json and cache it as a JSON string for injection into the system prompt.
-    Called once at startup from main.py lifespan.
-    Raises FileNotFoundError if diseases.json is missing.
-    """
-    global _diseases_json
-    if not DISEASES_FILE.exists():
-        raise FileNotFoundError(
-            f"diseases.json not found at {DISEASES_FILE}. "
-            "This file must exist for the chat to work safely."
-        )
-    with open(DISEASES_FILE, "r", encoding="utf-8") as f:
-        diseases = json.load(f)
-    _diseases_json = json.dumps(diseases, ensure_ascii=False, indent=2)
-    logger.info("Knowledge base loaded: %d diseases", len(diseases))
-
-
 def get_provider() -> str:
-    """Return the active LLM provider name (from LLM_PROVIDER env var, default 'sambanova')."""
     return os.environ.get(LLM_PROVIDER_ENV, "sambanova").lower()
 
 
 def is_chat_configured() -> bool:
-    """True when the API key for the active provider is set."""
-    provider  = get_provider()
-    key_name  = PROVIDER_KEYS.get(provider)
+    provider = get_provider()
+    key_name = PROVIDER_KEYS.get(provider)
     return bool(key_name and os.environ.get(key_name))
 
 
 def error_message(language: str) -> str:
-    """Return a farmer-friendly error message in the given language."""
     return ERROR_MESSAGES.get(language, ERROR_MESSAGES["en"])
 
 
-def trim_history(history: list[ChatMessage]) -> list[ChatMessage]:
-    """Keep only the last MAX_HISTORY_MESSAGES turns to avoid token limit issues."""
-    return history[-MAX_HISTORY_MESSAGES:]
-
-
 # ---------------------------------------------------------------------------
-# Private helpers
+# LLM provider functions
 # ---------------------------------------------------------------------------
 
-def _get_system_prompt() -> str:
-    if _diseases_json is None:
-        # Lazy-load if init_knowledge_base() was not called at startup
-        init_knowledge_base()
-    return SYSTEM_PROMPT_TEMPLATE.format(diseases_json=_diseases_json)
-
-
-def _build_user_message(
-    message: str,
-    language: str,
-    diagnosis_context: Optional[DiagnosisContext],
-) -> str:
-    """
-    Wrap the farmer's message with metadata so the LLM has full context.
-    The language code reminds the model which language to reply in.
-    """
-    parts = [f"Farmer language: {language}", f"Message: {message}"]
-    if diagnosis_context:
-        parts.append(
-            f"Diagnosis context: {diagnosis_context.disease} "
-            f"(confidence {diagnosis_context.confidence:.1f}%)"
-        )
-    return "\n".join(parts)
-
-
-def _openai_messages(user_msg: str, history: list[ChatMessage]) -> list[dict]:
-    """Build the messages array for OpenAI-compatible chat APIs (OpenAI, SambaNova)."""
-    messages = [{"role": "system", "content": _get_system_prompt()}]
+def _openai_messages(system_prompt: str, user_msg: str, history: list[ChatMessage]) -> list[dict]:
+    messages = [{"role": "system", "content": system_prompt}]
     for h in history:
         messages.append({"role": h.role, "content": h.content})
     messages.append({"role": "user", "content": user_msg})
     return messages
 
 
-# ---------------------------------------------------------------------------
-# Provider-specific generators
-# ---------------------------------------------------------------------------
-
-def _generate_sambanova(user_msg: str, history: list[ChatMessage]) -> str:
-    """Call SambaNova's OpenAI-compatible API."""
+def _generate_sambanova(system_prompt: str, user_msg: str, history: list[ChatMessage]) -> str:
     from openai import OpenAI, OpenAIError
-
-    api_key  = os.environ.get("SAMBANOVA_API_KEY")
+    api_key = os.environ.get("SAMBANOVA_API_KEY")
     if not api_key:
         raise ChatNotConfiguredError("SAMBANOVA_API_KEY not set.")
-
-    base_url = os.environ.get("SAMBANOVA_BASE_URL", SAMBANOVA_BASE_URL)
-    model    = os.environ.get("SAMBANOVA_MODEL", DEFAULT_MODELS["sambanova"])
-
     try:
-        client   = OpenAI(base_url=base_url, api_key=api_key)
-        response = client.chat.completions.create(
-            model=model,
-            messages=_openai_messages(user_msg, history),
-            max_tokens=MAX_OUTPUT_TOKENS,
-            temperature=0.2,
+        client = OpenAI(
+            base_url=os.environ.get("SAMBANOVA_BASE_URL", SAMBANOVA_BASE_URL),
+            api_key=api_key,
         )
-        reply = (response.choices[0].message.content or "").strip()
+        resp = client.chat.completions.create(
+            model=os.environ.get("SAMBANOVA_MODEL", DEFAULT_MODELS["sambanova"]),
+            messages=_openai_messages(system_prompt, user_msg, history),
+            max_tokens=MAX_TOKENS,
+            temperature=0.3,
+        )
+        reply = (resp.choices[0].message.content or "").strip()
     except OpenAIError as exc:
         raise ChatServiceError(f"SambaNova API error: {exc}") from exc
-
     if not reply:
         raise ChatServiceError("Empty response from SambaNova.")
     return reply
 
 
-def _generate_gemini(user_msg: str, history: list[ChatMessage]) -> str:
-    """Call Google Gemini API."""
+def _generate_gemini(system_prompt: str, user_msg: str, history: list[ChatMessage]) -> str:
     import google.generativeai as genai
-
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ChatNotConfiguredError("GEMINI_API_KEY not set.")
-
-    model_name = os.environ.get("GEMINI_MODEL", DEFAULT_MODELS["gemini"])
-
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=_get_system_prompt(),
+            model_name=os.environ.get("GEMINI_MODEL", DEFAULT_MODELS["gemini"]),
+            system_instruction=system_prompt,
         )
-        gemini_history = [
+        chat  = model.start_chat(history=[
             {"role": "user" if h.role == "user" else "model", "parts": [h.content]}
             for h in history
-        ]
-        if gemini_history:
-            chat = model.start_chat(history=gemini_history)
-            resp = chat.send_message(
-                user_msg, generation_config={"max_output_tokens": MAX_OUTPUT_TOKENS}
-            )
-        else:
-            resp = model.generate_content(
-                user_msg, generation_config={"max_output_tokens": MAX_OUTPUT_TOKENS}
-            )
+        ])
+        resp  = chat.send_message(user_msg, generation_config={"max_output_tokens": MAX_TOKENS})
         reply = (resp.text or "").strip()
     except Exception as exc:
         raise ChatServiceError(f"Gemini API error: {exc}") from exc
-
     if not reply:
         raise ChatServiceError("Empty response from Gemini.")
     return reply
 
 
-def _generate_openai(user_msg: str, history: list[ChatMessage]) -> str:
-    """Call OpenAI API (gpt-4o-mini by default)."""
+def _generate_openai(system_prompt: str, user_msg: str, history: list[ChatMessage]) -> str:
     from openai import OpenAI, OpenAIError
-
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise ChatNotConfiguredError("OPENAI_API_KEY not set.")
-
-    model = os.environ.get("OPENAI_MODEL", DEFAULT_MODELS["openai"])
-
     try:
-        client   = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model=model,
-            messages=_openai_messages(user_msg, history),
-            max_tokens=MAX_OUTPUT_TOKENS,
-            temperature=0.2,
+        client = OpenAI(api_key=api_key)
+        resp   = client.chat.completions.create(
+            model=os.environ.get("OPENAI_MODEL", DEFAULT_MODELS["openai"]),
+            messages=_openai_messages(system_prompt, user_msg, history),
+            max_tokens=MAX_TOKENS,
+            temperature=0.3,
         )
-        reply = (response.choices[0].message.content or "").strip()
+        reply = (resp.choices[0].message.content or "").strip()
     except OpenAIError as exc:
         raise ChatServiceError(f"OpenAI API error: {exc}") from exc
-
     if not reply:
         raise ChatServiceError("Empty response from OpenAI.")
     return reply
 
 
-def _generate_anthropic(user_msg: str, history: list[ChatMessage]) -> str:
-    """Call Anthropic API (claude-haiku by default)."""
+def _generate_anthropic(system_prompt: str, user_msg: str, history: list[ChatMessage]) -> str:
     import anthropic
-
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise ChatNotConfiguredError("ANTHROPIC_API_KEY not set.")
-
-    model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODELS["anthropic"])
-
     try:
         client = anthropic.Anthropic(api_key=api_key)
         msgs   = [{"role": h.role, "content": h.content} for h in history]
         msgs.append({"role": "user", "content": user_msg})
         resp   = client.messages.create(
-            model=model,
-            max_tokens=MAX_OUTPUT_TOKENS,
-            system=_get_system_prompt(),
+            model=os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODELS["anthropic"]),
+            max_tokens=MAX_TOKENS,
+            system=system_prompt,
             messages=msgs,
         )
         reply = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
     except anthropic.APIError as exc:
         raise ChatServiceError(f"Anthropic API error: {exc}") from exc
-
     if not reply:
         raise ChatServiceError("Empty response from Anthropic.")
     return reply
@@ -317,32 +442,37 @@ def generate_reply(
     conversation_history: list[ChatMessage],
 ) -> str:
     """
-    Generate a grounded reply from the active LLM provider.
+    Run the LangGraph pipeline and return the reply.
+
+    Flow: classify_intent → select_prompt → generate_response
 
     Raises:
-        ChatNotConfiguredError: No API key set. Caller should return HTTP 503.
-        ChatServiceError:       Provider call failed. Caller should return HTTP 502.
+        ChatNotConfiguredError: no API key set
+        ChatServiceError:       LLM call failed
     """
     if not is_chat_configured():
         provider = get_provider()
         key_var  = PROVIDER_KEYS.get(provider, f"{provider.upper()}_API_KEY")
         raise ChatNotConfiguredError(f"Chat not configured. Set {key_var}.")
 
-    provider   = get_provider()
-    history    = trim_history(conversation_history)
-    user_msg   = _build_user_message(message, language, diagnosis_context)
+    final = _get_graph().invoke({
+        "message":           message,
+        "language":          language,
+        "diagnosis_context": diagnosis_context,
+        "history":           conversation_history,
+        "intent":            None,
+        "system_prompt":     None,
+        "reply":             None,
+    })
 
-    generators = {
-        "sambanova": _generate_sambanova,
-        "gemini":    _generate_gemini,
-        "openai":    _generate_openai,
-        "anthropic": _generate_anthropic,
-    }
-    fn = generators.get(provider)
-    if fn is None:
-        raise ChatNotConfiguredError(
-            f"Unknown LLM_PROVIDER '{provider}'. "
-            f"Valid options: {', '.join(generators)}"
-        )
+    reply = final.get("reply")
+    if not reply:
+        raise ChatServiceError("Graph completed but produced no reply.")
 
-    return fn(user_msg, history)
+    logger.info(
+        "LangGraph chat [intent=%s lang=%s disease=%s] → %d chars",
+        final.get("intent"), language,
+        diagnosis_context.disease if diagnosis_context else "none",
+        len(reply),
+    )
+    return reply

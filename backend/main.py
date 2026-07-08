@@ -1,22 +1,28 @@
 """
 main.py — Kisan Mitra FastAPI application
 
+Two features only:
+  1. POST /diagnose  — upload rice leaf image → TFLite classifier → disease + treatment
+  2. POST /chat      — text chat via LangGraph + SambaNova LLM, grounded in diseases.json
+
 Startup order:
-  1. Load diseases.json into chat_service memory (for LLM grounding)
-  2. Initialise SQLite database (creates tables if missing)
-  3. Load MLX STT model if VOICE_STT_PROVIDER=mlx (async thread)
-  4. Mount routers and static frontend
-
-Run locally:
-  uvicorn backend.main:app --reload --port 8000
-
-Or use start.sh / docker compose up --build.
+  1. Load .env (python-dotenv)
+  2. Load diseases.json into chat_service
+  3. Initialise SQLite database
+  4. Mount routers and serve frontend
 """
 
 import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# Load .env automatically — no need to export vars manually before starting
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass  # install python-dotenv if you need auto .env loading
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -26,8 +32,7 @@ from fastapi.staticfiles import StaticFiles
 
 import chat_service
 import database
-import voice_service
-from routers import chat, dashboard, diagnose, diseases, health, voice
+from routers import chat, dashboard, diagnose, diseases, health
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,62 +40,47 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASE_DIR      = Path(__file__).resolve().parent
-FRONTEND_DIR  = (BASE_DIR.parent / "frontend").resolve()
+BASE_DIR     = Path(__file__).resolve().parent
+FRONTEND_DIR = (BASE_DIR.parent / "frontend").resolve()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup tasks — run once before serving requests."""
     logger.info("Starting Kisan Mitra...")
-
-    # 1. Load diseases.json for LLM grounding (raises on missing/corrupt file)
     chat_service.init_knowledge_base()
-
-    # 2. Init SQLite (creates data/ dir and tables if needed)
     await database.init_db()
     logger.info("Database ready: %s", database.DB_PATH)
-
-    # 3. Load MLX STT model (only on Apple Silicon; no-op otherwise)
-    await voice_service.init_stt()
-    logger.info("Voice status: %s", voice_service.stt_status())
-
-    yield  # application runs here
-
+    yield
     logger.info("Kisan Mitra shutting down.")
 
 
 app = FastAPI(
     title="Kisan Mitra API",
-    description="AI crop advisor for paddy farmers — FastAPI backend",
-    version="1.0.0",
+    description="Paddy disease classifier + LangGraph chat advisor",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
-# Allow all origins in development. In production, restrict to your domain.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- API routers ---
+# Active routers — image diagnosis + text chat only
 app.include_router(health.router)
 app.include_router(diseases.router)
 app.include_router(diagnose.router)
 app.include_router(chat.router)
-app.include_router(voice.router)
 app.include_router(dashboard.router)
 
 
-# --- Serve frontend ---
 @app.get("/", include_in_schema=False)
 def serve_frontend():
     index = FRONTEND_DIR / "index.html"
     if not index.is_file():
-        raise HTTPException(status_code=404, detail="Frontend not built. Run from project root.")
+        raise HTTPException(status_code=404, detail="Frontend not found.")
     return FileResponse(index)
 
 

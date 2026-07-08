@@ -29,7 +29,7 @@ DISEASE_CLASSES = [
 ]
 
 DEFAULT_MODEL_PATH = os.path.join(
-    os.path.dirname(__file__), "models", "paddy_disease_model.tflite"
+    os.path.dirname(__file__), "models", "rice_disease_model.tflite"
 )
 INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
 # resnet = ImageNet ResNet preprocess (BGR + mean subtraction); scale = pixel/255

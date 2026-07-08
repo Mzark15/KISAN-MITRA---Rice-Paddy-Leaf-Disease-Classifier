@@ -1,3 +1,0 @@
-# Optional: local MLX STT on Apple Silicon (replaces Bhashini for speech-to-text)
-# pip install -r requirements-mlx.txt
-mlx-audio>=0.2.7

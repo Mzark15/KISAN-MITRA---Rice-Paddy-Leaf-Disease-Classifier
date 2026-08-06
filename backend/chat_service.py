@@ -41,7 +41,7 @@ PROVIDER_KEYS: dict[str, str] = {
 
 # Per-provider default model names (overridable via env)
 DEFAULT_MODELS: dict[str, str] = {
-    "sambanova": "Meta-Llama-3.1-8B-Instruct",
+    "sambanova": "Meta-Llama-3.3-70B-Instruct",
     "gemini":    "gemini-2.0-flash",
     "openai":    "gpt-4o-mini",
     "anthropic": "claude-haiku-4-5",
@@ -63,7 +63,11 @@ You are Kisan Mitra, a trusted AI advisor for paddy (rice) farmers in India.
 
 STRICT RULES — follow these exactly:
 1. Only answer questions about paddy/rice farming. For anything else, politely say you only help with rice crops.
-2. Always reply in the SAME language the farmer used. Hindi → Hindi. Marathi → Marathi. English → English.
+2. Every message below starts with "Farmer language: <code>" (hi=Hindi, mr=Marathi, en=English). You MUST reply
+   in that exact language, in its native script (Hindi → Devanagari Hindi, Marathi → Devanagari Marathi). This
+   overrides whatever script or language the "Message:" text itself happens to be written in — voice transcripts
+   are sometimes mistakenly translated to English before reaching you, but the farmer still spoke their own
+   language and expects a reply in it.
 3. All treatment advice MUST come only from the KNOWLEDGE BASE below. Never invent dosages or chemicals.
 4. Keep answers to 3–5 sentences. Simple words. No jargon.
 5. For Tungro or Bacterial Panicle Blight, always end with: "अपने नजदीकी KVK या कृषि अधिकारी से सलाह लें।"

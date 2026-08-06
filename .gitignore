@@ -1,0 +1,44 @@
+# Environment / secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Data / DB
+backend/data/*.db
+backend/data/*.sqlite3
+
+# Trained model checkpoints from experimentation — NOT the shipped .tflite,
+# which is committed on purpose so `git clone` gives a working classifier.
+backend/models/*.h5
+backend/models/*.keras
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# BFG repo-cleaner report noise
+.bfg-report/
+
+# Mobile — Capacitor / Node / Android / iOS
+node_modules/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/

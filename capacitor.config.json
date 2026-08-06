@@ -1,0 +1,11 @@
+{
+  "appId": "com.mrfounders.kisanmitra",
+  "appName": "Kisan Mitra",
+  "webDir": "frontend",
+  "server": {
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

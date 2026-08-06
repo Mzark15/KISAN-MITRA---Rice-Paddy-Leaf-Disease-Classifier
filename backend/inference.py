@@ -1,4 +1,4 @@
-"""TFLite inference for Paddy Doctor 13-class ResNet34 classifier."""
+"""TFLite inference for the Kaggle Paddy Doctor 10-class MobileNetV2 classifier."""
 
 import logging
 import os
@@ -9,31 +9,33 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-MODEL_ARCH = "resnet34"
+MODEL_ARCH = "mobilenetv2"
 
-# Paddy Doctor dataset class order (paper Table 1 / Keras folder alphabetical order)
+# Kaggle "Paddy Doctor: Paddy Disease Classification" competition dataset —
+# 10 classes (9 diseases + normal), Keras folder alphabetical order.
+# This matches what Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb actually trains.
 DISEASE_CLASSES = [
     "Bacterial Leaf Blight",
     "Bacterial Leaf Streak",
     "Bacterial Panicle Blight",
-    "Black Stem Borer",
     "Blast",
     "Brown Spot",
+    "Dead Heart",
     "Downy Mildew",
     "Hispa",
-    "Leaf Roller",
-    "Tungro",
-    "White Stem Borer",
-    "Yellow Stem Borer",
     "Normal",
+    "Tungro",
 ]
 
 DEFAULT_MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "models", "paddy_disease_model.tflite"
 )
-INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "256"))
+INPUT_SIZE = int(os.environ.get("MODEL_INPUT_SIZE", "224"))
+# none = pass raw pixels through (preprocess_input is already baked into the
+# model graph — this is correct for the training notebook's model); mobilenet
+# = MobileNetV2 preprocess (scale to [-1, 1], only if NOT baked in already);
 # resnet = ImageNet ResNet preprocess (BGR + mean subtraction); scale = pixel/255
-PREPROCESS_MODE = os.environ.get("MODEL_PREPROCESS", "resnet").lower()
+PREPROCESS_MODE = os.environ.get("MODEL_PREPROCESS", "none").lower()
 
 # Keras ResNet / ResNet34 ImageNet mean subtraction (caffe mode, BGR order)
 _RESNET_MEANS_BGR = np.array([103.939, 116.779, 123.68], dtype=np.float32)
@@ -41,6 +43,28 @@ _RESNET_MEANS_BGR = np.array([103.939, 116.779, 123.68], dtype=np.float32)
 
 class ModelNotLoadedError(Exception):
     """Raised when the TFLite model file is missing or failed to load."""
+
+
+def _none_preprocess(arr: np.ndarray) -> np.ndarray:
+    """No-op — pass raw 0-255 pixel values through unchanged.
+
+    Use this when preprocess_input is already baked into the model graph,
+    which is the case for Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb:
+    `preprocess_input(x)` is applied as a layer *inside* the Keras
+    functional model (before base_model), so it gets traced into the
+    exported .tflite graph automatically. Applying it again here would
+    double-scale every image and skew every prediction.
+    """
+    return arr
+
+
+def _mobilenet_preprocess(arr: np.ndarray) -> np.ndarray:
+    """Match tf.keras.applications.mobilenet_v2.preprocess_input (scale to [-1, 1]).
+
+    Only use this if your model does NOT already apply preprocess_input
+    internally (e.g. you rescaled outside the model graph before saving).
+    """
+    return (arr / 127.5) - 1.0
 
 
 def _resnet_preprocess(arr: np.ndarray) -> np.ndarray:
@@ -57,18 +81,43 @@ def _scale_preprocess(arr: np.ndarray) -> np.ndarray:
 
 
 def preprocess_image(arr: np.ndarray) -> np.ndarray:
+    if PREPROCESS_MODE == "none":
+        return _none_preprocess(arr)
+    if PREPROCESS_MODE == "mobilenet":
+        return _mobilenet_preprocess(arr)
     if PREPROCESS_MODE == "resnet":
         return _resnet_preprocess(arr)
     if PREPROCESS_MODE == "scale":
         return _scale_preprocess(arr)
     raise ValueError(
-        f"Unknown MODEL_PREPROCESS={PREPROCESS_MODE!r}. Use 'resnet' or 'scale'."
+        f"Unknown MODEL_PREPROCESS={PREPROCESS_MODE!r}. Use 'none', 'mobilenet', 'resnet', or 'scale'."
     )
+
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _resolve_model_path(path: str) -> str:
+    """
+    Resolve MODEL_PATH regardless of the process's working directory.
+
+    .env documents MODEL_PATH as "backend/models/paddy_disease_model.tflite"
+    (relative to the project root), but start.sh runs the app from inside
+    backend/ (cd backend && python main.py), so a naive relative lookup would
+    incorrectly resolve to backend/backend/models/... and silently fall back
+    to random predictions. Resolve relative paths against the project root
+    instead of CWD. Absolute paths (e.g. Docker's /app/backend/models/...)
+    pass through unchanged.
+    """
+    if os.path.isabs(path):
+        return path
+    return os.path.join(PROJECT_ROOT, path)
 
 
 class DiseaseModel:
     def __init__(self, model_path: Optional[str] = None):
-        self.model_path = model_path or os.environ.get("MODEL_PATH", DEFAULT_MODEL_PATH)
+        raw_path = model_path or os.environ.get("MODEL_PATH", DEFAULT_MODEL_PATH)
+        self.model_path = _resolve_model_path(raw_path)
         self.interpreter = None
         self.input_details = None
         self.output_details = None
@@ -105,7 +154,8 @@ class DiseaseModel:
                 len(DISEASE_CLASSES),
             )
         logger.info(
-            "Loaded ResNet34 TFLite model from %s (%dx%d, preprocess=%s)",
+            "Loaded %s TFLite model from %s (%dx%d, preprocess=%s)",
+            MODEL_ARCH,
             self.model_path,
             INPUT_SIZE,
             INPUT_SIZE,
@@ -131,7 +181,7 @@ class DiseaseModel:
         return DISEASE_CLASSES[idx], float(confidences[idx]) * 100
 
     def _preprocess(self, img: Image.Image) -> np.ndarray:
-        """Resize and normalize for Paddy Doctor ResNet34 training (256×256)."""
+        """Resize and normalize to match the model's training pipeline (default 224×224 MobileNetV2)."""
         img = img.convert("RGB").resize((INPUT_SIZE, INPUT_SIZE), Image.Resampling.BILINEAR)
         arr = np.array(img, dtype=np.float32)
         arr = preprocess_image(arr)

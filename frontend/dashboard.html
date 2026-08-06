@@ -4,47 +4,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kisan Mitra — Field Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
-        :root { --green-900:#1b4332; --green-700:#2d6a4f; --green-100:#d8f3dc; --green-50:#f1faee; --border:#b7e4c7; }
+        :root {
+          --green-900:#1b4332; --green-800:#204e3b; --green-700:#2d6a4f; --green-600:#379268; --green-500:#40916c;
+          --green-100:#d8f3dc; --green-50:#f1faee; --gold:#ffd166; --border:#b7e4c7; --text:#1c2321; --muted:#5c6b63;
+          --radius-sm:.5rem; --radius-md:.85rem; --radius-lg:1.25rem;
+          --shadow-sm:0 1px 3px rgba(27,67,50,.08); --shadow-md:0 6px 20px rgba(27,67,50,.10);
+          --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",Arial,sans-serif;
+        }
         * { box-sizing: border-box; }
-        body { margin:0; font-family:system-ui,sans-serif; background:var(--green-50); color:#1b1b1b; }
+        body {
+          margin:0; font-family:var(--font); background:var(--green-50); color:var(--text);
+          background-image:
+            radial-gradient(circle at 100% 0%, rgba(64,145,108,.08), transparent 40%),
+            radial-gradient(circle at 0% 100%, rgba(255,209,102,.10), transparent 40%);
+          background-attachment: fixed;
+          -webkit-font-smoothing: antialiased;
+        }
         .container { max-width:960px; margin:0 auto; padding:1rem; }
-        header { background:linear-gradient(135deg,var(--green-900),var(--green-700)); color:#fff; padding:1rem; border-radius:0 0 1rem 1rem; margin-bottom:1rem; }
-        .card { background:#fff; border:1px solid var(--border); border-radius:.75rem; padding:1rem; margin-bottom:1rem; }
-        .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.75rem; margin-bottom:1rem; }
-        .stat { background:#fff; border:1px solid var(--border); border-radius:.75rem; padding:1rem; text-align:center; }
-        .stat .val { font-size:1.75rem; font-weight:700; color:var(--green-900); }
-        .stat .lbl { font-size:.8rem; color:#5c5c5c; }
-        .charts { display:grid; grid-template-columns:1fr; gap:1rem; }
+        header {
+          background:linear-gradient(135deg,var(--green-900),var(--green-700) 65%,var(--green-600));
+          color:#fff; padding:1.25rem 1rem 1.5rem; border-radius:0 0 1.5rem 1.5rem; margin-bottom:1.25rem;
+          box-shadow: var(--shadow-md);
+        }
+        .brand-row { display:flex; align-items:center; gap:.75rem; }
+        .brand-logo { width:40px; height:40px; flex-shrink:0; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+        .card { background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.15rem; margin-bottom:1.1rem; box-shadow:var(--shadow-sm); }
+        .card h3 { margin:0 0 .85rem; color:var(--green-900); font-size:1rem; }
+        .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.85rem; margin-bottom:1.1rem; }
+        .stat { background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.1rem; text-align:center; box-shadow:var(--shadow-sm); transition:transform .15s ease; }
+        .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .stat .val { font-size:1.85rem; font-weight:800; color:var(--green-900); letter-spacing:-.02em; }
+        .stat .lbl { font-size:.8rem; color:var(--muted); margin-top:.15rem; font-weight:600; }
+        .charts { display:grid; grid-template-columns:1fr; gap:1.1rem; }
         @media(min-width:700px){ .charts { grid-template-columns:1fr 1fr; } }
         table { width:100%; border-collapse:collapse; font-size:.85rem; }
-        th,td { padding:.5rem; border-bottom:1px solid var(--border); text-align:left; }
-        th { background:var(--green-100); color:var(--green-900); }
-        #loginOverlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:100; }
-        #loginBox { background:#fff; padding:1.5rem; border-radius:.75rem; width:90%; max-width:320px; }
-        #loginBox input { width:100%; padding:.5rem; margin:.75rem 0; border:1px solid var(--border); border-radius:.5rem; }
-        #loginBox button { width:100%; padding:.65rem; background:var(--green-700); color:#fff; border:none; border-radius:.5rem; cursor:pointer; }
+        th,td { padding:.6rem .5rem; border-bottom:1px solid var(--border); text-align:left; }
+        th { background:var(--green-100); color:var(--green-900); font-weight:700; }
+        tbody tr:hover { background: var(--green-50); }
+        #loginOverlay {
+          position:fixed; inset:0;
+          background: linear-gradient(135deg, rgba(27,67,50,.85), rgba(45,106,79,.85));
+          display:flex; align-items:center; justify-content:center; z-index:100; padding:1rem;
+        }
+        #loginBox { background:#fff; padding:2rem 1.75rem; border-radius:var(--radius-lg); width:100%; max-width:340px; box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align:center; }
+        #loginBox .brand-logo { width:52px; height:52px; margin:0 auto .9rem; display:block; border-radius:16px; }
+        #loginBox h2 { margin:0 0 .3rem; color:var(--green-900); }
+        #loginBox input {
+          width:100%; padding:.65rem .75rem; margin:1rem 0 .75rem; border:1.5px solid var(--border);
+          border-radius:var(--radius-sm); font-size:.95rem; font-family:inherit;
+        }
+        #loginBox input:focus { outline:none; border-color:var(--green-500); box-shadow:0 0 0 3px rgba(64,145,108,.15); }
+        #loginBox button {
+          width:100%; padding:.75rem; background:linear-gradient(135deg,var(--green-600),var(--green-800));
+          color:#fff; border:none; border-radius:var(--radius-sm); cursor:pointer; font-size:.95rem; font-weight:700;
+          box-shadow: 0 2px 6px rgba(27,67,50,.2);
+        }
         .hidden { display:none !important; }
-        a { color:var(--green-700); }
+        a { color:var(--green-700); font-weight:600; text-decoration:none; }
+        a:hover { text-decoration: underline; }
+        footer { text-align:center; padding:1.5rem 1rem 2rem; font-size:.78rem; color:var(--muted); }
     </style>
 </head>
 <body>
     <div id="loginOverlay">
         <div id="loginBox">
-            <h2 style="margin:0 0 .5rem">Field Team Login</h2>
-            <p style="font-size:.85rem;color:#5c5c5c;margin:0">Internal pilot dashboard</p>
+            <img class="brand-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+            <h2>Field Team Login</h2>
+            <p style="font-size:.85rem;color:var(--muted);margin:0">Internal pilot dashboard</p>
             <input type="password" id="passwordInput" placeholder="Password" autofocus>
             <button id="loginBtn">Enter</button>
-            <p id="loginError" class="hidden" style="color:#b00020;font-size:.85rem">Wrong password</p>
+            <p id="loginError" class="hidden" style="color:#b00020;font-size:.85rem;margin:.6rem 0 0">Wrong password</p>
         </div>
     </div>
 
     <div id="dashboard" class="hidden">
         <header>
-            <div class="container">
-                <h1 style="margin:0">Kisan Mitra — Pilot Dashboard</h1>
-                <p style="margin:.25rem 0 0;opacity:.9;font-size:.9rem">Auto-refreshes every 60s · <a href="/" style="color:#d8f3dc">← Back to app</a></p>
+            <div class="container brand-row">
+                <img class="brand-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+                <div>
+                    <h1 style="margin:0;font-size:1.25rem">Kisan Mitra — Pilot Dashboard</h1>
+                    <p style="margin:.2rem 0 0;opacity:.9;font-size:.88rem">Auto-refreshes every 60s · <a href="/" style="color:#d8f3dc">← Back to app</a></p>
+                </div>
             </div>
         </header>
         <div class="container">
@@ -63,10 +106,15 @@
                 </div>
             </div>
         </div>
+        <footer>© 2026 MRFOUNDERS (Mayur &amp; Raj). All rights reserved.</footer>
     </div>
 
     <script>
-        const API_URL = window.location.origin;
+        // See frontend/index.html for why native apps need a separate backend URL.
+        const MOBILE_API_BASE_URL = "http://10.61.212.4:8000";
+        const API_URL = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+          ? MOBILE_API_BASE_URL
+          : window.location.origin;
         // Match DASHBOARD_PASSWORD in .env (default: kisan123)
         const DASHBOARD_PASSWORD = "kisan123";
 

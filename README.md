@@ -6,11 +6,11 @@ A multi-phase AI-powered application for paddy farmers, starting with disease de
 
 ### Phase 1 – Disease Detection
 - Upload or capture a leaf photo
-- Run inference using a TFLite model (ResNet34 trained on Paddy Doctor dataset)
+- Run inference using a TFLite model (MobileNetV2 trained on the Kaggle Paddy Doctor competition dataset)
 - Get a diagnosis with confidence score
 - View cause, severity, and organic/chemical treatment options
 - No external cloud required for inference (works offline if model is present)
-- 13-class classification (Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight, Black Stem Borer, Blast, Brown Spot, Downy Mildew, Hispa, Leaf Roller, Tungro, White Stem Borer, Yellow Stem Borer, Normal)
+- 10-class classification (Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight, Blast, Brown Spot, Dead Heart, Downy Mildew, Hispa, Normal, Tungro)
 
 ### Phase 2 – Chat
 - Text chat in Hindi, Marathi, English
@@ -59,8 +59,8 @@ cp .env.example .env
 Minimal config for Phase 1 (no API keys needed):
 ```env
 MODEL_PATH=backend/models/paddy_disease_model.tflite
-MODEL_INPUT_SIZE=256
-MODEL_PREPROCESS=resnet
+MODEL_INPUT_SIZE=224
+MODEL_PREPROCESS=none
 DB_PATH=data/kisan_mitra.db
 ```
 
@@ -172,13 +172,13 @@ krishi/
 |------|---------|-------------|
 | `PORT` | `8000` | Server port |
 | `MODEL_PATH` | `backend/models/paddy_disease_model.tflite` | Path to TFLite model file |
-| `MODEL_INPUT_SIZE` | `256` | Model input resolution (px) |
-| `MODEL_PREPROCESS` | `resnet` | Preprocessing mode: `resnet` (ImageNet mean subtraction, BGR) or `scale` |
+| `MODEL_INPUT_SIZE` | `224` | Model input resolution (px) |
+| `MODEL_PREPROCESS` | `none` | Preprocessing mode: `none` (preprocessing baked into the model graph — correct for the training notebook), `mobilenet` (scale to [-1,1]), `resnet` (ImageNet mean subtraction, BGR), or `scale` |
 | `DB_PATH` | `data/kisan_mitra.db` | SQLite database path |
 | `LLM_PROVIDER` | `sambanova` | LLM provider: `sambanova`, `openai`, `gemini`, `anthropic` |
 | `SAMBANOVA_API_KEY` | | SambaNova API key |
 | `SAMBANOVA_BASE_URL` | `https://api.sambanova.ai/v1` | SambaNova base URL |
-| `SAMBANOVA_MODEL` | `Meta-Llama-3.1-8B-Instruct` | SambaNova model |
+| `SAMBANOVA_MODEL` | `Meta-Llama-3.3-70B-Instruct` | SambaNova model |
 | `OPENAI_API_KEY` | | OpenAI API key |
 | `GEMINI_API_KEY` | | Google AI Studio API key |
 | `ANTHROPIC_API_KEY` | | Anthropic API key |
@@ -192,7 +192,7 @@ krishi/
 
 ## Model Integration
 
-The app expects a TFLite model trained on the Paddy Doctor dataset (13 classes, alphabetical order).
+The app expects a TFLite model trained on the Kaggle Paddy Doctor competition dataset (10 classes, alphabetical order) — see `Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb` and `backend/models/README.md`.
 
 Use `scripts/convert_to_tflite.py` to convert a Keras model to TFLite:
 ```bash
@@ -215,4 +215,8 @@ python convert_to_tflite.py --model ../my_model.keras --output ../backend/models
 
 ## License
 
-TBD.
+Copyright © 2026 MRFOUNDERS (Mayur & Raj). All rights reserved.
+
+This project and its source code are proprietary to MRFOUNDERS. No part of this
+repository may be copied, modified, distributed, or used without prior written
+permission from the copyright holders.

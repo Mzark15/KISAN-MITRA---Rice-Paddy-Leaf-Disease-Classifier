@@ -1,15 +1,14 @@
-# Paddy Doctor — ResNet34 model
+# Paddy Doctor — MobileNetV2 model
 
-Place your trained **ResNet34** TFLite export here:
+Place your trained **MobileNetV2** TFLite export here:
 
 ```
 paddy_disease_model.tflite
 ```
 
-Trained on the [Paddy Doctor dataset](https://paddydoc.github.io/) (16,225 images, 13 classes).  
-Paper benchmark: ResNet34 achieved **97.50% F1-score** (best among DCNN, MobileNet, VGG16, Xception).
+Trained on the [Kaggle "Paddy Doctor: Paddy Disease Classification"](https://www.kaggle.com/competitions/paddy-disease-classification) competition dataset (~10,400 training images, 10 classes: 9 diseases + normal). This is what `Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb` trains — run it, then convert the saved Keras model with `scripts/convert_to_tflite.py`.
 
-## Class order (index 0 → 12)
+## Class order (index 0 → 9)
 
 Must match training label order:
 
@@ -18,36 +17,42 @@ Must match training label order:
 | 0 | Bacterial Leaf Blight |
 | 1 | Bacterial Leaf Streak |
 | 2 | Bacterial Panicle Blight |
-| 3 | Black Stem Borer |
-| 4 | Blast |
-| 5 | Brown Spot |
+| 3 | Blast |
+| 4 | Brown Spot |
+| 5 | Dead Heart |
 | 6 | Downy Mildew |
 | 7 | Hispa |
-| 8 | Leaf Roller |
+| 8 | Normal |
 | 9 | Tungro |
-| 10 | White Stem Borer |
-| 11 | Yellow Stem Borer |
-| 12 | Normal |
 
-If you used Keras `ImageDataGenerator.flow_from_directory`, folder names are typically alphabetical (`bacterial_leaf_blight`, `blast`, …, `normal`) which matches this order.
+`tf.keras.utils.image_dataset_from_directory` (used in the training notebook) sorts folder names alphabetically (`bacterial_leaf_blight`, `bacterial_leaf_streak`, `bacterial_panicle_blight`, `blast`, `brown_spot`, `dead_heart`, `downy_mildew`, `hispa`, `normal`, `tungro`), which matches this order.
 
-## Input preprocessing (ResNet34)
+## Input preprocessing — important
 
-Matches Keras `resnet50.preprocess_input` used with ImageNet-pretrained ResNet fine-tuning:
+The training notebook applies `mobilenet_v2.preprocess_input` **as a layer inside
+the Keras model itself** (`x = preprocess_input(x)` runs on `inputs` before
+`base_model`, inside the functional model definition). That means the
+[-1, 1] rescaling gets traced into the exported `.tflite` graph automatically —
+the model expects **raw 0-255 pixel values** as input, not pre-scaled ones.
 
-- **Size:** 256×256 RGB (Paddy Doctor paper)
-- **Steps:** RGB → BGR, then subtract channel means `[103.939, 116.779, 123.68]`
+- **Size:** 224×224 RGB
+- **`MODEL_PREPROCESS=none`** (default) — pass raw pixels through unchanged. Use this.
 
-If your training used simple `rescale=1./255` instead, set:
+Feeding manually-rescaled pixels here double-applies the scaling and silently
+skews every prediction (same file, same model, different — wrong — results).
+Only switch away from `none` if you retrain with preprocessing done *outside*
+the model graph:
 
 ```bash
-export MODEL_PREPROCESS=scale
+export MODEL_PREPROCESS=mobilenet  # scale to [-1, 1] — only if NOT already baked into the model
+export MODEL_PREPROCESS=resnet     # ImageNet ResNet caffe-mode (BGR + mean subtraction)
+export MODEL_PREPROCESS=scale      # simple rescale=1./255
 ```
 
 ## Convert Keras model to TFLite
 
 ```bash
-python scripts/convert_to_tflite.py path/to/resnet34_model.h5
+python scripts/convert_to_tflite.py path/to/rice_disease_model.keras
 ```
 
 ## Environment variables
@@ -55,5 +60,5 @@ python scripts/convert_to_tflite.py path/to/resnet34_model.h5
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MODEL_PATH` | `backend/models/paddy_disease_model.tflite` | Path to `.tflite` file |
-| `MODEL_INPUT_SIZE` | `256` | Input width/height |
-| `MODEL_PREPROCESS` | `resnet` | `resnet` or `scale` |
+| `MODEL_INPUT_SIZE` | `224` | Input width/height |
+| `MODEL_PREPROCESS` | `none` | `none`, `mobilenet`, `resnet`, or `scale` |

@@ -53,7 +53,7 @@ def get_diseases():
 
     Response shape:
         {
-            "count": 13,
+            "count": 10,
             "diseases": [
                 {
                     "name": "Blast",

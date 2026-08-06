@@ -10,13 +10,13 @@ services:
       - .env
     environment:
       - MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
-      - MODEL_INPUT_SIZE=256
-      - MODEL_PREPROCESS=resnet
+      - MODEL_INPUT_SIZE=224
+      - MODEL_PREPROCESS=none
       - DB_PATH=/app/data/kisan_mitra.db
       - LLM_PROVIDER=${LLM_PROVIDER:-sambanova}
       - SAMBANOVA_API_KEY=${SAMBANOVA_API_KEY:-}
       - SAMBANOVA_BASE_URL=${SAMBANOVA_BASE_URL:-https://api.sambanova.ai/v1}
-      - SAMBANOVA_MODEL=${SAMBANOVA_MODEL:-Meta-Llama-3.1-8B-Instruct}
+      - SAMBANOVA_MODEL=${SAMBANOVA_MODEL:-Meta-Llama-3.3-70B-Instruct}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

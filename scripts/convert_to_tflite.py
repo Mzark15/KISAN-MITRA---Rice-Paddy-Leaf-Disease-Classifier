@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a trained Keras ResNet34 model (.h5 / .keras) to TFLite for Kisan Mitra."""
+"""Convert a trained Keras model (.h5 / .keras) to TFLite for Kisan Mitra."""
 
 import argparse
 import os
@@ -25,7 +25,7 @@ def convert(model_path: str, output_path: str) -> None:
         f.write(tflite_model)
 
     print(f"Saved TFLite model to {output_path}")
-    print(f"Output classes: {model.output_shape[-1]} (expect 13 for Paddy Doctor)")
+    print(f"Output classes: {model.output_shape[-1]} (expect 10 for the Kaggle Paddy Doctor dataset)")
 
 
 def main() -> None:

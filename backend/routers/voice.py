@@ -75,7 +75,7 @@ async def speech_to_text(
         )
 
     try:
-        text = await voice_service.speech_to_text(audio_bytes, language)
+        text = await voice_service.speech_to_text(audio_bytes, language, audio.filename or "")
     except voice_service.VoiceNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except voice_service.VoiceServiceError as exc:
@@ -164,7 +164,7 @@ async def voice_chat(
 
     # --- Step 1: Speech to text ---
     try:
-        transcript = await voice_service.speech_to_text(audio_bytes, language)
+        transcript = await voice_service.speech_to_text(audio_bytes, language, audio.filename or "")
         stt_ok = bool(transcript)
     except voice_service.VoiceNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

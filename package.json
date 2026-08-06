@@ -1,0 +1,21 @@
+{
+  "name": "kisan-mitra-mobile",
+  "version": "1.0.0",
+  "description": "Kisan Mitra mobile app shell (Capacitor wrapper around the existing web frontend)",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync",
+    "open:android": "cap open android",
+    "open:ios": "cap open ios",
+    "add:android": "cap add android",
+    "add:ios": "cap add ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  }
+}

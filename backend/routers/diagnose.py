@@ -30,8 +30,9 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp", "
 # Maximum upload size (bytes)
 MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_SIZE_MB", "10")) * 1024 * 1024
 
-# Minimum confidence to trust the prediction. Below this we fall back to "Normal"
-# and ask the farmer for a clearer photo.
+# Minimum confidence to treat the prediction as reliable. Below this, the model's
+# top guess is still shown (not hidden) but flagged as unverified via safe_to_act
+# and low_confidence_message — see the confidence gate below.
 # Override: set CONFIDENCE_THRESHOLD env var (e.g. CONFIDENCE_THRESHOLD=70)
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "60.0"))
 
@@ -80,12 +81,14 @@ async def diagnose(
     Upload a rice leaf photo → get disease name, confidence, and vetted treatment advice.
 
     **Confidence threshold** (default 60%):
-    - Above threshold → returns the predicted disease and treatment.
-    - Below threshold → returns `safe_to_act=False` with a message asking for a clearer photo.
-      Disease defaults to 'Normal' so no harmful advice is given.
+    - Above threshold → returns the predicted disease and treatment, `safe_to_act=True`.
+    - Below threshold → still returns the model's actual top prediction and treatment,
+      but with `safe_to_act=False` and `low_confidence_message` set. Treat this as an
+      unverified hint, not a confirmed diagnosis — the frontend must keep the warning
+      visible whenever `safe_to_act` is False.
 
     **model_mode** in the response:
-    - `tflite` — real ResNet34 model, predictions are meaningful.
+    - `tflite` — real trained model loaded, predictions are meaningful.
     - `random` — demo stub (no .tflite file found), predictions are random. For development only.
     """
     # --- Validate content type ---
@@ -125,15 +128,19 @@ async def diagnose(
         raise HTTPException(status_code=500, detail=f"Inference error: {exc}") from exc
 
     # --- Confidence gate ---
-    # If confidence is too low, don't guess — ask for a clearer photo instead.
+    # Below threshold, we don't hide the model's guess — we still show it (and its
+    # treatment info) so the farmer isn't left with nothing, but safe_to_act=False
+    # and low_confidence_message flag it clearly as unverified. The frontend must
+    # keep showing that warning prominently whenever safe_to_act is False; treat
+    # the accompanying treatment/disease name as a hint, not a confirmed diagnosis.
     safe_to_act = confidence >= CONFIDENCE_THRESHOLD
     low_confidence_message: Optional[str] = None
     if not safe_to_act:
         low_confidence_message = (
-            f"Photo unclear ({confidence:.1f}% confidence). "
-            "Please take a closer, well-lit photo of the affected leaf and try again."
+            f"Low confidence ({confidence:.1f}%) — this is the model's best guess, not a "
+            "confirmed diagnosis. Take a closer, well-lit photo of the affected leaf and "
+            "try again, or consult your KVK before acting on this."
         )
-        disease_name = "Normal"  # safe default — no harmful advice given when uncertain
 
     # --- Fetch vetted treatment ---
     treatment = _get_treatment(disease_name)

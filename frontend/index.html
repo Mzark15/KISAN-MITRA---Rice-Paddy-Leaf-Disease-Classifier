@@ -4,221 +4,310 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kisan Mitra — Paddy Advisor</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
   <style>
     /* ── Design tokens — change colours here, nowhere else ──────────────── */
     :root {
       --green-900: #1b4332;
+      --green-800: #204e3b;
       --green-700: #2d6a4f;
+      --green-600: #379268;
       --green-500: #40916c;
       --green-100: #d8f3dc;
       --green-50:  #f1faee;
+      --gold:      #ffd166;
       --border:    #b7e4c7;
-      --text:      #1b1b1b;
-      --muted:     #5c5c5c;
+      --text:      #1c2321;
+      --muted:     #5c6b63;
       --white:     #fff;
-      --grey:      #f4f4f4;
+      --grey:      #f4f6f4;
       --warn-bg:   #fff8e1;
       --warn-border:#f9a825;
       --danger:    #b00020;
       --danger-bg: #fde8e8;
       --demo-bg:   #e8e0ff;
       --demo-text: #4a1d96;
+      --radius-sm: .5rem;
+      --radius-md: .85rem;
+      --radius-lg: 1.25rem;
+      --shadow-sm: 0 1px 3px rgba(27,67,50,.08);
+      --shadow-md: 0 6px 20px rgba(27,67,50,.10);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari",
+              "Noto Sans", "Helvetica Neue", Arial, sans-serif;
     }
 
     /* ── Reset & base ────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: system-ui, sans-serif;
+      font-family: var(--font);
       background: var(--green-50);
+      background-image:
+        radial-gradient(circle at 100% 0%, rgba(64,145,108,.08), transparent 40%),
+        radial-gradient(circle at 0% 100%, rgba(255,209,102,.10), transparent 40%);
+      background-attachment: fixed;
       color: var(--text);
       line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
     }
     .container { max-width: 640px; margin: 0 auto; padding: 1rem; }
 
     /* ── Header ──────────────────────────────────────────────────────────── */
     header {
-      background: linear-gradient(135deg, var(--green-900), var(--green-700));
+      background: linear-gradient(135deg, var(--green-900), var(--green-700) 65%, var(--green-600));
       color: var(--white);
-      padding: 1.25rem 1rem;
-      border-radius: 0 0 1rem 1rem;
-      margin-bottom: 1rem;
+      padding: 1.5rem 1rem 1.75rem;
+      border-radius: 0 0 1.5rem 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: var(--shadow-md);
     }
-    header h1 { margin: 0 0 .25rem; font-size: 1.35rem; }
-    header p  { margin: 0; opacity: .9; font-size: .95rem; }
+    .brand-row { display: flex; align-items: center; gap: .75rem; }
+    .brand-logo { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+    .brand-text h1 { margin: 0; font-size: 1.3rem; font-weight: 700; letter-spacing: -.01em; }
+    .brand-text p  { margin: .15rem 0 0; opacity: .88; font-size: .88rem; }
 
     /* ── Cards ───────────────────────────────────────────────────────────── */
     .card {
       background: var(--white);
       border: 1px solid var(--border);
-      border-radius: .75rem;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      box-shadow: 0 2px 8px rgba(27,67,50,.08);
+      border-radius: var(--radius-lg);
+      padding: 1.15rem;
+      margin-bottom: 1.1rem;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow .2s ease;
     }
-    .card h2 { margin: 0 0 .75rem; font-size: 1.1rem; color: var(--green-900); }
+    .card:hover { box-shadow: var(--shadow-md); }
+    .card h2 {
+      margin: 0 0 .9rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--green-900);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .card h2 .icon-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px; height: 30px;
+      border-radius: 9px;
+      background: var(--green-100);
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
 
     /* ── Forms ───────────────────────────────────────────────────────────── */
-    label { display: block; margin-bottom: .75rem; font-size: .9rem; }
+    label { display: block; margin-bottom: .85rem; font-size: .88rem; font-weight: 600; color: var(--green-900); }
     input[type="file"],
     input[type="text"],
     select,
     textarea {
       width: 100%;
-      margin-top: .35rem;
-      padding: .5rem;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
+      margin-top: .4rem;
+      padding: .6rem .7rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
       font-family: inherit;
       font-size: .9rem;
+      font-weight: 400;
+      color: var(--text);
+      background: var(--white);
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
+    input[type="text"]:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--green-500);
+      box-shadow: 0 0 0 3px rgba(64,145,108,.15);
+    }
+    input[type="file"] { padding: .45rem; font-size: .85rem; cursor: pointer; }
 
     /* ── Buttons ─────────────────────────────────────────────────────────── */
     button, .btn {
-      background: var(--green-700);
+      background: linear-gradient(135deg, var(--green-600), var(--green-800));
       color: var(--white);
       border: none;
-      border-radius: .5rem;
-      padding: .65rem 1rem;
-      font-size: .95rem;
+      border-radius: var(--radius-sm);
+      padding: .7rem 1.1rem;
+      font-size: .92rem;
+      font-weight: 600;
       cursor: pointer;
+      box-shadow: 0 2px 6px rgba(27,67,50,.18);
+      transition: transform .1s ease, box-shadow .15s ease, opacity .15s ease;
     }
-    button:disabled          { opacity: .55; cursor: not-allowed; }
-    button:hover:not(:disabled) { background: var(--green-900); }
+    button:disabled          { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    button:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(27,67,50,.26); }
+    button:active:not(:disabled) { transform: scale(.98); }
     .btn-outline {
-      background: transparent;
-      border: 1px solid var(--green-700);
+      background: var(--white);
+      border: 1.5px solid var(--green-600);
       color: var(--green-700);
+      box-shadow: none;
     }
+    .btn-outline:hover:not(:disabled) { background: var(--green-50); box-shadow: none; }
 
     /* ── Language selector row ───────────────────────────────────────────── */
     .lang-row {
       display: flex;
       gap: .5rem;
       align-items: center;
-      margin-bottom: .75rem;
+      margin-bottom: .85rem;
       flex-wrap: wrap;
     }
     .lang-row label { margin: 0; }
-    .lang-row select { flex: 1; min-width: 140px; }
+    .lang-row select { flex: 1; min-width: 140px; margin-top: 0; }
 
     /* ── Diagnosis result ────────────────────────────────────────────────── */
     #preview img {
       max-width: 100%;
-      border-radius: .5rem;
-      margin-top: .75rem;
+      border-radius: var(--radius-md);
+      margin-top: .85rem;
       border: 2px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+    #result:not(:empty) {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
     }
     .confidence-bar {
-      height: 8px;
+      height: 9px;
       background: var(--green-100);
-      border-radius: 4px;
-      margin: .5rem 0 1rem;
+      border-radius: 5px;
+      margin: .55rem 0 1rem;
       overflow: hidden;
     }
-    .confidence-fill { height: 100%; background: var(--green-500); border-radius: 4px; }
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green-500), var(--green-700));
+      border-radius: 5px;
+      transition: width .4s ease;
+    }
 
     /* Status badges */
     .badge {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: .78rem;
-      font-weight: 600;
-      margin-bottom: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: .76rem;
+      font-weight: 700;
+      margin-bottom: 8px;
     }
     .badge-demo   { background: var(--demo-bg);   color: var(--demo-text); }
     .badge-kvk    { background: #fff3cd;           color: #856404;
-                    border: 1px solid #ffc107; }
+                    border: 1px solid #ffc107; border-radius: var(--radius-sm); padding: .55rem .7rem;
+                    font-weight: 600; display: block; margin: .5rem 0; }
     .warn-box {
       background: var(--warn-bg);
-      border-left: 3px solid var(--warn-border);
-      padding: .65rem .75rem;
-      border-radius: .4rem;
-      font-size: .88rem;
-      margin: .5rem 0;
+      border-left: 4px solid var(--warn-border);
+      padding: .7rem .85rem;
+      border-radius: var(--radius-sm);
+      font-size: .87rem;
+      margin: .6rem 0;
     }
-    .feedback-row { display: flex; gap: .5rem; margin-top: .75rem; }
+    .feedback-row { display: flex; gap: .6rem; margin-top: .9rem; }
 
     /* ── Chat ────────────────────────────────────────────────────────────── */
     .chat-messages {
       min-height: 140px;
       max-height: 300px;
       overflow-y: auto;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .75rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: .85rem;
       background: var(--green-50);
-      margin-bottom: .75rem;
+      margin-bottom: .85rem;
     }
     .msg {
       max-width: 85%;
-      padding: .55rem .75rem;
-      border-radius: .75rem;
-      margin-bottom: .5rem;
+      padding: .6rem .85rem;
+      border-radius: .9rem;
+      margin-bottom: .55rem;
       font-size: .92rem;
       white-space: pre-wrap;
       word-break: break-word;
+      box-shadow: var(--shadow-sm);
     }
-    .msg.user      { margin-left: auto; background: var(--green-700); color: var(--white); }
-    .msg.assistant { margin-right: auto; background: var(--grey); border: 1px solid var(--border); }
+    .msg.user      { margin-left: auto; background: linear-gradient(135deg, var(--green-600), var(--green-800)); color: var(--white); border-bottom-right-radius: .3rem; }
+    .msg.assistant { margin-right: auto; background: var(--white); border: 1px solid var(--border); border-bottom-left-radius: .3rem; }
     .chat-input-row { display: flex; gap: .5rem; align-items: flex-end; }
-    .chat-input-row textarea { flex: 1; min-height: 70px; resize: vertical; }
+    .chat-input-row textarea { flex: 1; min-height: 70px; resize: vertical; margin-top: 0; }
 
     /* ── Voice ───────────────────────────────────────────────────────────── */
     .mic-btn {
-      width: 80px; height: 80px;
+      width: 84px; height: 84px;
       border-radius: 50%;
-      font-size: 1.75rem;
+      font-size: 1.85rem;
       display: block;
-      margin: 1rem auto;
+      margin: 1.1rem auto;
+      background: linear-gradient(135deg, var(--green-600), var(--green-900));
+      box-shadow: 0 4px 16px rgba(27,67,50,.3);
     }
     .mic-btn.recording {
-      background: var(--danger);
+      background: linear-gradient(135deg, var(--danger), #7a0016);
       animation: pulse 1s infinite;
     }
-    @keyframes pulse { 50% { transform: scale(1.05); } }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0   rgba(176,0,32,.4); }
+      70%  { box-shadow: 0 0 0 16px rgba(176,0,32,0); }
+      100% { box-shadow: 0 0 0 0   rgba(176,0,32,0); }
+    }
     .voice-box {
       background: var(--green-50);
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .75rem;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: .8rem .9rem;
       margin: .75rem 0;
       font-size: .9rem;
     }
-    .hint { font-size: .78rem; color: var(--muted); text-align: center; }
+    .hint { font-size: .8rem; color: var(--muted); text-align: center; }
 
     /* ── Disease reference ───────────────────────────────────────────────── */
-    .disease-item { border: 1px solid var(--border); border-radius: .5rem; margin-bottom: .5rem; overflow: hidden; }
+    .disease-item { border: 1.5px solid var(--border); border-radius: var(--radius-md); margin-bottom: .55rem; overflow: hidden; }
     .disease-item summary {
-      padding: .65rem .75rem;
+      padding: .7rem .85rem;
       cursor: pointer;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--green-900);
       background: var(--green-50);
       list-style: none;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transition: background .15s ease;
     }
-    .disease-item summary::after { content: "▾"; font-size: .8rem; }
+    .disease-item summary:hover { background: var(--green-100); }
+    .disease-item summary::after { content: "▾"; font-size: .8rem; color: var(--green-700); }
     .disease-item[open] summary::after { content: "▴"; }
-    .disease-body { padding: .75rem; font-size: .9rem; border-top: 1px solid var(--border); }
-    .disease-body p { margin: 0 0 .4rem; }
+    .disease-body { padding: .85rem; font-size: .9rem; border-top: 1px solid var(--border); }
+    .disease-body p { margin: 0 0 .45rem; }
 
     /* ── Misc ────────────────────────────────────────────────────────────── */
     .error-text { color: var(--danger); font-size: .9rem; }
-    .disclaimer { margin-top: .75rem; font-size: .78rem; color: var(--muted); text-align: center; }
-    footer { text-align: center; padding: 1rem; font-size: .85rem; }
-    footer a { color: var(--green-700); }
+    .disclaimer { margin-top: .85rem; font-size: .78rem; color: var(--muted); text-align: center; }
+    footer {
+      text-align: center;
+      padding: 1.5rem 1rem 2rem;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--green-700); font-weight: 600; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .footer-logo { width: 22px; height: 22px; border-radius: 6px; vertical-align: middle; margin-right: .35rem; }
+    .footer-copy { margin-top: .5rem; opacity: .75; font-size: .76rem; }
   </style>
 </head>
 <body>
 
 <header>
-  <div class="container">
-    <h1>किसान मित्र — Kisan Mitra</h1>
-    <p>AI crop advisor for paddy farmers</p>
+  <div class="container brand-row">
+    <img class="brand-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+    <div class="brand-text">
+      <h1>किसान मित्र — Kisan Mitra</h1>
+      <p>AI crop advisor for paddy farmers</p>
+    </div>
   </div>
 </header>
 
@@ -226,7 +315,7 @@
 
   <!-- ── Section 1: Photo Diagnosis ─────────────────────────────────────── -->
   <section class="card" id="diagnoseSection">
-    <h2>📷 Photo Diagnosis</h2>
+    <h2><span class="icon-badge">📷</span> Photo Diagnosis</h2>
     <label>Village (optional):
       <input type="text" id="villageInput" placeholder="e.g. Tirunelveli">
     </label>
@@ -243,7 +332,7 @@
 
   <!-- ── Section 2: Text Chat ───────────────────────────────────────────── -->
   <section class="card" id="chatSection">
-    <h2>💬 Text Chat</h2>
+    <h2><span class="icon-badge">💬</span> Text Chat</h2>
     <div class="lang-row">
       <label for="languageSelect">Language:</label>
       <select id="languageSelect">
@@ -264,7 +353,7 @@
 
   <!-- ── Section 3: Voice Chat ──────────────────────────────────────────── -->
   <section class="card" id="voiceSection">
-    <h2>🎤 Voice Chat</h2>
+    <h2><span class="icon-badge">🎤</span> Voice Chat</h2>
     <p class="hint">Hold the button, speak your question, then release.</p>
     <button class="mic-btn" id="micBtn" aria-label="Hold to record">🎤</button>
     <p class="hint" id="voiceFallbackLabel" hidden>Using device voice (Bhashini/MLX not configured)</p>
@@ -274,22 +363,36 @@
 
   <!-- ── Section 4: Disease Reference ──────────────────────────────────── -->
   <section class="card" id="referenceSection">
-    <h2>📚 Disease Reference</h2>
-    <input type="text" id="diseaseSearch" placeholder="Search disease name…" style="margin-bottom:.75rem">
+    <h2><span class="icon-badge">📚</span> Disease Reference</h2>
+    <input type="text" id="diseaseSearch" placeholder="Search disease name…" style="margin-bottom:.85rem">
     <div id="diseaseList"></div>
   </section>
 
 </div>
 
 <footer>
-  <a href="/dashboard">Field team dashboard →</a>
+  <div>
+    <img class="footer-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+    <a href="/dashboard">Field team dashboard →</a>
+  </div>
+  <p class="footer-copy">© 2026 MRFOUNDERS (Mayur &amp; Raj). All rights reserved.</p>
 </footer>
 
 <script>
 "use strict";
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const API = window.location.origin;         // All API calls go to the same origin
+// Web (served directly by FastAPI): same-origin, no config needed.
+// Native app (Capacitor iOS/Android): the WebView loads these files as bundled
+// local assets from a secure https://localhost origin — required so mic/camera
+// APIs like getUserMedia work at all (see MOBILE.md for why). That means the
+// backend is a different host and must be set explicitly here. Edit this to
+// your Mac's LAN IP for local testing, or your deployed HTTPS URL (see
+// DEPLOY.md) once you've deployed.
+const MOBILE_API_BASE_URL = "http://10.61.212.4:8000";
+const API = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+  ? MOBILE_API_BASE_URL
+  : window.location.origin;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let selectedFile         = null;
@@ -422,7 +525,7 @@ function displayResult(data) {
     ? `<span class="badge badge-demo">Demo mode — not a real prediction</span><br>`
     : "";
   const kvkBadge = t.refer_to_kvk
-    ? `<div class="badge badge-kvk">⚠️ Severe disease — contact your nearest KVK immediately</div>`
+    ? `<div class="badge-kvk">⚠️ Severe disease — contact your nearest KVK immediately</div>`
     : "";
 
   // Low-confidence warning
@@ -443,8 +546,8 @@ function displayResult(data) {
 
   document.getElementById("result").innerHTML = `
     ${demoBadge}
-    <h3>${escHtml(data.disease)}</h3>
-    <p>Confidence: ${data.confidence.toFixed(1)}%</p>
+    <h3 style="margin:.2rem 0 .3rem;color:var(--green-900)">${escHtml(data.disease)}</h3>
+    <p style="margin:0;color:var(--muted);font-size:.88rem">Confidence: ${data.confidence.toFixed(1)}%</p>
     <div class="confidence-bar">
       <div class="confidence-fill" style="width:${Math.min(data.confidence, 100)}%"></div>
     </div>

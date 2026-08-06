@@ -3,8 +3,12 @@ uvicorn[standard]
 pillow
 numpy
 python-multipart
-tflite-runtime
+# tflite-runtime has no official wheel for macOS (esp. Apple Silicon) or newer
+# Python versions. inference.py already falls back to tensorflow.lite when
+# tflite_runtime isn't importable, so tensorflow covers every platform here.
+tensorflow
 openai
 aiosqlite
 aiofiles
 httpx
+python-dotenv

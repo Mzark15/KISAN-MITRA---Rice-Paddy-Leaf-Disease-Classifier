@@ -104,7 +104,7 @@ async def init_stt() -> None:
 # STT
 # ---------------------------------------------------------------------------
 
-async def speech_to_text(audio_bytes: bytes, source_language: str) -> str:
+async def speech_to_text(audio_bytes: bytes, source_language: str, filename: str = "") -> str:
     """
     Convert audio bytes to text using the configured STT provider.
 
@@ -113,16 +113,23 @@ async def speech_to_text(audio_bytes: bytes, source_language: str) -> str:
       2. Bhashini (if credentials are set)
       3. VoiceNotConfiguredError → frontend falls back to Web Speech API
 
+    `filename` is the original upload filename (e.g. "recording.mp4" on Safari,
+    "recording.webm" elsewhere) — the frontend already detects the browser's
+    actual MediaRecorder output format and names the file accordingly. We must
+    use that real extension when converting with ffmpeg; hardcoding ".webm"
+    breaks on Safari/iOS, which record audio/mp4 instead.
+
     Raises:
         VoiceNotConfiguredError: no provider available
         VoiceServiceError: provider call failed
     """
     provider = get_stt_provider()
+    suffix = os.path.splitext(filename)[1] or ".webm"
 
     # --- MLX path ---
     if provider == "mlx" or (provider == "auto" and mlx_stt_service.is_loaded()):
         try:
-            return await mlx_stt_service.speech_to_text(audio_bytes, source_language)
+            return await mlx_stt_service.speech_to_text(audio_bytes, source_language, suffix)
         except mlx_stt_service.MlxSTTNotAvailable as exc:
             if provider == "mlx":
                 # Hard fail: user explicitly chose MLX and it's not available

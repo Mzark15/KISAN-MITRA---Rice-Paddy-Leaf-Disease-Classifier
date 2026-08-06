@@ -17,10 +17,7 @@ if [ ! -d ".venv" ]; then
 fi
 
 source .venv/bin/activate
-pip install -q -r requirements.txt 2>/dev/null || {
-  pip install -q fastapi "uvicorn[standard]" pillow numpy python-multipart
-  pip install -q tensorflow
-}
+pip install -q -r requirements.txt
 
 # Optional: local MLX STT on Apple Silicon (replaces Bhashini for voice)
 if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then

@@ -24,6 +24,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+# Load .env so config (API keys, MODEL_PATH, etc.) is present even when this
+# file is run directly (e.g. `python backend/main.py` from an IDE) instead of
+# via start.sh, which sources .env itself. No-op if .env is missing or
+# python-dotenv isn't installed.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
+
 import chat_service
 import database
 import voice_service

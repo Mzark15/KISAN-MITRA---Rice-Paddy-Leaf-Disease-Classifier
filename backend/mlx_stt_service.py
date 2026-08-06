@@ -15,8 +15,16 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "mlx-community/Qwen2-Audio-7B-Instruct-4bit"
 
 LANG_PROMPTS = {
-    "hi": "Transcribe the audio. The speaker is speaking Hindi. Return only the transcription text.",
-    "mr": "Transcribe the audio. The speaker is speaking Marathi. Return only the transcription text.",
+    "hi": (
+        "Transcribe the audio. The speaker is speaking Hindi. "
+        "Write the transcription in Hindi using Devanagari script. "
+        "Do NOT translate to English. Return only the transcription text, nothing else."
+    ),
+    "mr": (
+        "Transcribe the audio. The speaker is speaking Marathi. "
+        "Write the transcription in Marathi using Devanagari script. "
+        "Do NOT translate to English. Return only the transcription text, nothing else."
+    ),
     "en": "Transcribe the audio. The speaker is speaking English. Return only the transcription text.",
 }
 
@@ -101,10 +109,20 @@ def _bytes_to_wav_path(audio_bytes: bytes, suffix: str = ".webm") -> str:
         capture_output=True,
         text=True,
     )
-    Path(src_path).unlink(missing_ok=True)
     if result.returncode != 0:
+        # ffmpeg always prints a long version/build banner first — the actual
+        # error is at the END of stderr, not the start. Log the full output
+        # server-side and surface the tail (where the real reason lives) to
+        # the caller instead of the useless banner.
+        logger.error(
+            "ffmpeg conversion failed (input size=%d bytes):\n%s",
+            len(audio_bytes),
+            result.stderr,
+        )
         Path(wav_path).unlink(missing_ok=True)
-        raise MlxSTTError(f"ffmpeg conversion failed: {result.stderr[:300]}")
+        Path(src_path).unlink(missing_ok=True)
+        raise MlxSTTError(f"ffmpeg conversion failed: {result.stderr.strip()[-400:]}")
+    Path(src_path).unlink(missing_ok=True)
     return wav_path
 
 
@@ -120,11 +138,11 @@ def _transcribe_sync(wav_path: str, language: str) -> str:
     return text
 
 
-async def speech_to_text(audio_bytes: bytes, source_language: str) -> str:
+async def speech_to_text(audio_bytes: bytes, source_language: str, suffix: str = ".webm") -> str:
     if _model is None:
         raise MlxSTTNotAvailable(_load_error or "MLX STT model not loaded")
 
-    wav_path = await asyncio.to_thread(_bytes_to_wav_path, audio_bytes, ".webm")
+    wav_path = await asyncio.to_thread(_bytes_to_wav_path, audio_bytes, suffix)
     try:
         return await asyncio.to_thread(_transcribe_sync, wav_path, source_language)
     finally:

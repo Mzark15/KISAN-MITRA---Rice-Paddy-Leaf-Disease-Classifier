@@ -23,14 +23,6 @@
     "precautions": "Rog infected panicles before seed shed. Consult KVK for severe outbreaks.",
     "refer_to_kvk": true
   },
-  "Black Stem Borer": {
-    "cause": "Insect pest — Scirpophaga melanoclista moth larva boring into stem.",
-    "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Light traps for adult moths. Release Trichogramma egg parasitoids. Remove affected tillers. Apply neem oil (3ml/L).",
-    "chemical_treatment": "Apply Chlorpyrifos (2.5ml/L) or Carbofuran granules (3% at 33kg/ha). Spray Monocrotophos (1.5ml/L) on tillers.",
-    "precautions": "Avoid close transplanting. Do not use excessive nitrogen fertilizer.",
-    "refer_to_kvk": false
-  },
   "Blast": {
     "cause": "Fungal infection by Magnaporthe oryzae; favored by cool nights, high humidity, and excess nitrogen.",
     "severity_levels": ["Low", "Medium", "High"],
@@ -45,6 +37,14 @@
     "organic_treatment": "Apply potassium-rich compost. Maintain proper soil moisture. Use disease-free seeds treated with hot water (52°C for 10 min).",
     "chemical_treatment": "Spray Mancozeb (2.5g/L) or Propiconazole (1ml/L) at early infection. Repeat after 14 days.",
     "precautions": "Test soil for potassium deficiency. Apply MOP (Muriate of Potash) as corrective measure.",
+    "refer_to_kvk": false
+  },
+  "Dead Heart": {
+    "cause": "Insect pest — stem borer larvae (e.g. Scirpophaga incertulas, yellow stem borer) tunnel into the stem during the vegetative stage, killing the central shoot.",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Collect and destroy egg masses and affected tillers. Light traps for adult moths. Release Trichogramma egg parasitoids. Neem oil (3ml/L) at egg hatching.",
+    "chemical_treatment": "Carbofuran 3G (33kg/ha) at transplanting/early tillering. Spray Chlorantraniliprole (0.4ml/L) or Cartap Hydrochloride (2g/L) for active infestation.",
+    "precautions": "Avoid close plant spacing and excess nitrogen. Synchronised planting with neighbouring fields reduces overall pest pressure.",
     "refer_to_kvk": false
   },
   "Downy Mildew": {
@@ -63,14 +63,6 @@
     "precautions": "Avoid excessive nitrogen. Plant at lower densities.",
     "refer_to_kvk": false
   },
-  "Leaf Roller": {
-    "cause": "Insect pest — Cnaphalocrocis medinalis moth; larvae roll leaves and feed inside, leaving white streaks.",
-    "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Cut and destroy rolled leaves before pupation. Light traps. Trichogramma parasitoids. Neem oil (3ml/L).",
-    "chemical_treatment": "Spray Chlorantraniliprole (0.4ml/L) or Flubendiamide (0.5ml/L). Carbofuran granules at 33kg/ha.",
-    "precautions": "Scout early at tillering stage. Do not spray insecticides during flowering to protect pollinators.",
-    "refer_to_kvk": false
-  },
   "Tungro": {
     "cause": "Viral disease transmitted by green leafhopper; causes stunted plants with yellow-orange leaf discoloration.",
     "severity_levels": ["Medium", "High"],
@@ -78,22 +70,6 @@
     "chemical_treatment": "No direct cure. Control leafhopper vector: spray Imidacloprid (0.5ml/L) or Thiamethoxam (0.25g/L) at seedling and early tillering.",
     "precautions": "Use tungro-resistant varieties (IR36, IR64). Avoid late planting. This is a serious disease — consult your KVK.",
     "refer_to_kvk": true
-  },
-  "White Stem Borer": {
-    "cause": "Insect pest — Scirpophaga innotata moth larva; causes dead heart in vegetative stage and white ear at grain filling.",
-    "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Light traps for adult moths. Trichogramma egg parasitoids. Remove and destroy affected tillers. Neem oil at 3ml/L.",
-    "chemical_treatment": "Carbofuran 3G (33kg/ha) at transplanting. Spray Chlorpyrifos (2ml/L) or Fipronil (1ml/L) at tiller stage.",
-    "precautions": "Avoid excess nitrogen. Synchronised planting with neighbours reduces overall pest pressure.",
-    "refer_to_kvk": false
-  },
-  "Yellow Stem Borer": {
-    "cause": "Most damaging stem borer — Scirpophaga incertulas; recognisable by golden-brown egg masses.",
-    "severity_levels": ["Low", "Medium", "High"],
-    "organic_treatment": "Collect and destroy egg masses. Light traps. Release Trichogramma chilonis (1.5 lakh/ha/week). Neem-based sprays at egg hatching.",
-    "chemical_treatment": "Carbofuran 3G (33kg/ha) at early tillering. Spray Chlorantraniliprole (0.4ml/L) or Cartap Hydrochloride (2g/L) for active infestation.",
-    "precautions": "Avoid close plant spacing. Do not use excessive nitrogen. Monitor regularly from transplanting.",
-    "refer_to_kvk": false
   },
   "Normal": {
     "cause": "N/A",

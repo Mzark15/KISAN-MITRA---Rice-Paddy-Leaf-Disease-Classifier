@@ -24,7 +24,7 @@ def health():
     Returns the status of all major components.
 
     **model_mode:**
-    - `tflite` — real ResNet34 model loaded. Predictions are meaningful.
+    - `tflite` — real trained model loaded. Predictions are meaningful.
     - `random`  — no .tflite file found. Demo stub active (predictions are random).
                   Place your model at backend/models/paddy_disease_model.tflite to fix.
 

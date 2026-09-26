@@ -8,6 +8,8 @@ python-multipart
 # tflite_runtime isn't importable, so tensorflow covers every platform here.
 tensorflow
 openai
+anthropic
+google-genai
 aiosqlite
 aiofiles
 httpx

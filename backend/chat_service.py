@@ -28,29 +28,35 @@ logger = logging.getLogger(__name__)
 # Configuration — change these env vars, not the code
 # ---------------------------------------------------------------------------
 
-# Which LLM provider to use. Options: sambanova | gemini | openai | anthropic
+# Which LLM provider to use. Options: sambanova | gemini | openai | anthropic | huggingface
 LLM_PROVIDER_ENV = "LLM_PROVIDER"
 
 # Map of provider name → env var that holds its API key
 PROVIDER_KEYS: dict[str, str] = {
-    "sambanova": "SAMBANOVA_API_KEY",
-    "gemini":    "GEMINI_API_KEY",
-    "openai":    "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
+    "sambanova":   "SAMBANOVA_API_KEY",
+    "gemini":      "GEMINI_API_KEY",
+    "openai":      "OPENAI_API_KEY",
+    "anthropic":   "ANTHROPIC_API_KEY",
+    "huggingface": "HUGGINGFACE_API_KEY",
 }
 
 # Per-provider default model names (overridable via env)
 DEFAULT_MODELS: dict[str, str] = {
-    "sambanova": "Meta-Llama-3.3-70B-Instruct",
-    "gemini":    "gemini-2.0-flash",
-    "openai":    "gpt-4o-mini",
-    "anthropic": "claude-haiku-4-5",
+    "sambanova":   "Meta-Llama-3.3-70B-Instruct",
+    "gemini":      "gemini-3.8-flash",
+    "openai":      "gpt-4o-mini",
+    "anthropic":   "claude-haiku-4-5-20251001",
+    # ":novita" picks a specific backing provider behind HF's router — swap via
+    # HUGGINGFACE_MODEL if you want a different one from huggingface.co/models.
+    "huggingface": "meta-llama/Llama-3.3-70B-Instruct:novita",
 }
+
+HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1"
 
 SAMBANOVA_BASE_URL = "https://api.sambanova.ai/v1"
 
 MAX_HISTORY_MESSAGES = 6     # Maximum number of past turns sent to the LLM (keeps token usage low)
-MAX_OUTPUT_TOKENS    = 300   # Short answers only — farmers need simple, actionable advice
+MAX_OUTPUT_TOKENS    = 600   # Enough room for a detailed, jargon-free explanation (not just 3-5 terse sentences)
 
 DISEASES_FILE = Path(__file__).resolve().parent / "diseases.json"
 
@@ -69,7 +75,16 @@ STRICT RULES — follow these exactly:
    are sometimes mistakenly translated to English before reaching you, but the farmer still spoke their own
    language and expects a reply in it.
 3. All treatment advice MUST come only from the KNOWLEDGE BASE below. Never invent dosages or chemicals.
-4. Keep answers to 3–5 sentences. Simple words. No jargon.
+4. The farmer may not be literate and has no agricultural or scientific training. Explain things the way
+   you would to a neighbour, not a textbook:
+   - Never use technical/scientific jargon (e.g. "pathogen", "fungicide class", "necrosis", "inoculum") without
+     immediately explaining it in one simple everyday phrase right after it.
+   - Give a real, detailed, practical answer — not a one-line summary. Cover: what is likely happening and why
+     (in plain terms), what to do about it step by step, and what to watch out for next. Roughly 6-10 short
+     sentences is normal for a real question — do not artificially cut it short.
+   - Use short sentences and common words. Prefer concrete instructions ("spray in the early morning or evening,
+     not in strong sun") over vague ones ("apply appropriately").
+   - It is fine to take a little more space if it means the farmer actually understands what to do.
 5. For Tungro or Bacterial Panicle Blight, always end with: "अपने नजदीकी KVK या कृषि अधिकारी से सलाह लें।"
 6. If a diagnosis_context is given in the message, give advice specific to that disease.
 
@@ -129,11 +144,38 @@ def get_provider() -> str:
     return os.environ.get(LLM_PROVIDER_ENV, "sambanova").lower()
 
 
-def is_chat_configured() -> bool:
-    """True when the API key for the active provider is set."""
-    provider  = get_provider()
-    key_name  = PROVIDER_KEYS.get(provider)
+def get_fallback_providers() -> list[str]:
+    """
+    Return the ordered list of fallback providers from LLM_FALLBACK_PROVIDERS
+    (comma-separated, e.g. "gemini,openai"). Empty by default — fallback is opt-in.
+    """
+    raw = os.environ.get("LLM_FALLBACK_PROVIDERS", "")
+    return [p.strip().lower() for p in raw.split(",") if p.strip()]
+
+
+def _is_provider_configured(provider: str) -> bool:
+    key_name = PROVIDER_KEYS.get(provider)
     return bool(key_name and os.environ.get(key_name))
+
+
+def _provider_chain() -> list[str]:
+    """
+    Ordered, de-duplicated list: primary provider first, then any configured
+    fallback providers. Providers with no API key set are skipped entirely.
+    """
+    chain = [get_provider(), *get_fallback_providers()]
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for p in chain:
+        if p not in seen:
+            seen.add(p)
+            ordered.append(p)
+    return ordered
+
+
+def is_chat_configured() -> bool:
+    """True when at least one provider in the chain (primary or fallback) has a key set."""
+    return any(_is_provider_configured(p) for p in _provider_chain())
 
 
 def error_message(language: str) -> str:
@@ -155,6 +197,25 @@ def _get_system_prompt() -> str:
         # Lazy-load if init_knowledge_base() was not called at startup
         init_knowledge_base()
     return SYSTEM_PROMPT_TEMPLATE.format(diseases_json=_diseases_json)
+
+
+def _strip_leaked_preamble(reply: str) -> str:
+    """
+    Some less instruction-tuned models (seen with Hugging Face-hosted models)
+    echo back the internal message framing we send in — e.g. a reply starting
+    with "Farmer language: hi" or "Message: ..." — instead of just answering.
+    Strip that leaked scaffolding so it never reaches the farmer.
+    """
+    import re
+    cleaned = reply
+    for _ in range(2):  # strip up to two leaked lines (language tag, then message echo)
+        cleaned = re.sub(
+            r"^\s*(Farmer language:\s*\S+|Message:\s*.*|Diagnosis context:\s*.*)\s*\n+",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+    return cleaned.strip() or reply.strip()  # never return empty — fall back to original
 
 
 def _build_user_message(
@@ -216,9 +277,45 @@ def _generate_sambanova(user_msg: str, history: list[ChatMessage]) -> str:
     return reply
 
 
+def _generate_huggingface(user_msg: str, history: list[ChatMessage]) -> str:
+    """
+    Call Hugging Face's Inference Providers router (OpenAI-compatible), which
+    fronts many hosted models/providers under one free-tier token. Same client
+    pattern as SambaNova since both speak the OpenAI chat-completions format.
+    """
+    from openai import OpenAI, OpenAIError
+
+    api_key = os.environ.get("HUGGINGFACE_API_KEY")
+    if not api_key:
+        raise ChatNotConfiguredError("HUGGINGFACE_API_KEY not set.")
+
+    base_url = os.environ.get("HUGGINGFACE_BASE_URL", HUGGINGFACE_BASE_URL)
+    model    = os.environ.get("HUGGINGFACE_MODEL", DEFAULT_MODELS["huggingface"])
+
+    try:
+        client   = OpenAI(base_url=base_url, api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=_openai_messages(user_msg, history),
+            max_tokens=MAX_OUTPUT_TOKENS,
+            temperature=0.2,
+        )
+        reply = (response.choices[0].message.content or "").strip()
+    except OpenAIError as exc:
+        raise ChatServiceError(f"Hugging Face API error: {exc}") from exc
+
+    if not reply:
+        raise ChatServiceError("Empty response from Hugging Face.")
+    return reply
+
+
 def _generate_gemini(user_msg: str, history: list[ChatMessage]) -> str:
-    """Call Google Gemini API."""
-    import google.generativeai as genai
+    """
+    Call Google Gemini API via the google-genai SDK (the old
+    google-generativeai package is fully deprecated and its models 404).
+    """
+    from google import genai
+    from google.genai import types
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -227,24 +324,23 @@ def _generate_gemini(user_msg: str, history: list[ChatMessage]) -> str:
     model_name = os.environ.get("GEMINI_MODEL", DEFAULT_MODELS["gemini"])
 
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=_get_system_prompt(),
-        )
+        client = genai.Client(api_key=api_key)
         gemini_history = [
-            {"role": "user" if h.role == "user" else "model", "parts": [h.content]}
+            types.Content(
+                role="user" if h.role == "user" else "model",
+                parts=[types.Part(text=h.content)],
+            )
             for h in history
         ]
-        if gemini_history:
-            chat = model.start_chat(history=gemini_history)
-            resp = chat.send_message(
-                user_msg, generation_config={"max_output_tokens": MAX_OUTPUT_TOKENS}
-            )
-        else:
-            resp = model.generate_content(
-                user_msg, generation_config={"max_output_tokens": MAX_OUTPUT_TOKENS}
-            )
+        chat = client.chats.create(
+            model=model_name,
+            history=gemini_history,
+            config=types.GenerateContentConfig(
+                system_instruction=_get_system_prompt(),
+                max_output_tokens=MAX_OUTPUT_TOKENS,
+            ),
+        )
+        resp = chat.send_message(user_msg)
         reply = (resp.text or "").strip()
     except Exception as exc:
         raise ChatServiceError(f"Gemini API error: {exc}") from exc
@@ -321,32 +417,56 @@ def generate_reply(
     conversation_history: list[ChatMessage],
 ) -> str:
     """
-    Generate a grounded reply from the active LLM provider.
+    Generate a grounded reply, trying the primary LLM provider first, then
+    falling back through LLM_FALLBACK_PROVIDERS (in order) if the primary
+    fails with a ChatServiceError (network error, rate limit, empty reply, etc).
+
+    This matters because free-tier providers like SambaNova occasionally return
+    HTTP 429 "high demand" errors that have nothing to do with your account —
+    the whole shared model is briefly overloaded. Without a fallback, that
+    turns into a dead end for the farmer. With one, the app quietly tries the
+    next configured provider and the farmer just gets an answer.
 
     Raises:
-        ChatNotConfiguredError: No API key set. Caller should return HTTP 503.
-        ChatServiceError:       Provider call failed. Caller should return HTTP 502.
+        ChatNotConfiguredError: No provider in the chain has an API key set.
+                                Caller should return HTTP 503.
+        ChatServiceError:       Every configured provider in the chain failed.
+                                Caller should return HTTP 502.
     """
-    if not is_chat_configured():
+    generators = {
+        "sambanova":   _generate_sambanova,
+        "gemini":      _generate_gemini,
+        "openai":      _generate_openai,
+        "anthropic":   _generate_anthropic,
+        "huggingface": _generate_huggingface,
+    }
+
+    chain = [p for p in _provider_chain() if p in generators]
+    configured_chain = [p for p in chain if _is_provider_configured(p)]
+
+    if not configured_chain:
         provider = get_provider()
         key_var  = PROVIDER_KEYS.get(provider, f"{provider.upper()}_API_KEY")
         raise ChatNotConfiguredError(f"Chat not configured. Set {key_var}.")
 
-    provider   = get_provider()
-    history    = trim_history(conversation_history)
-    user_msg   = _build_user_message(message, language, diagnosis_context)
+    history  = trim_history(conversation_history)
+    user_msg = _build_user_message(message, language, diagnosis_context)
 
-    generators = {
-        "sambanova": _generate_sambanova,
-        "gemini":    _generate_gemini,
-        "openai":    _generate_openai,
-        "anthropic": _generate_anthropic,
-    }
-    fn = generators.get(provider)
-    if fn is None:
-        raise ChatNotConfiguredError(
-            f"Unknown LLM_PROVIDER '{provider}'. "
-            f"Valid options: {', '.join(generators)}"
-        )
+    last_error: Optional[ChatServiceError] = None
+    for i, provider in enumerate(configured_chain):
+        fn = generators[provider]
+        try:
+            reply = _strip_leaked_preamble(fn(user_msg, history))
+            if i > 0:
+                logger.warning(
+                    "Chat fallback: '%s' failed, '%s' handled this reply instead.",
+                    configured_chain[0], provider,
+                )
+            return reply
+        except ChatServiceError as exc:
+            last_error = exc
+            logger.warning("Provider '%s' failed (%s), trying next in chain...", provider, exc)
+            continue
 
-    return fn(user_msg, history)
+    # Every provider in the chain failed.
+    raise last_error

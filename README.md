@@ -1,198 +1,178 @@
 # Kisan Mitra — AI Crop Advisor for Paddy Farmers
 
-A farmer photographs a rice leaf and gets the disease name, how sure the model is, and treatment
-advice. They can then ask follow-up questions by text or voice in Hindi, Marathi or English.
-It ships as a web app and an Android app (Capacitor) backed by one FastAPI server.
+A farmer takes a photo of a rice leaf. The app says **which disease it is**, **how sure it is**, and
+**what to do about it**. The farmer can then ask follow-up questions by text or voice in Hindi, Marathi or English.
+
+It runs as a web app and an Android app, both talking to one Python (FastAPI) server.
+
+---
+
+## Try it in 5 minutes (on your laptop + your phone)
+
+You do **not** need AWS for this. You need Python 3.10+, and, to build the Android app, Node.js and Android Studio.
+
+**Step 1. Install**
+```
+pip install -r requirements.txt
+npm install
+```
+
+**Step 2. Build the app and start the server**
+```
+py kisan.py all
+```
+This builds a test APK (`dist/KisanMitra-test.apk`) and then starts the server. Leave this window open.
+
+> On Windows you can type `kisan all` instead. Don't write `py kisan all` — `kisan` is a `.cmd` file, not a Python file.
+
+**Step 3. Let your phone reach your laptop (once)**
+```
+py kisan.py firewall
+```
+It prints one command. Paste it into PowerShell opened **as Administrator**.
+
+**Step 4. Install the app on your phone**
+1. Connect the phone to the **same Wi-Fi** as the laptop.
+2. Check it works: open `http://<laptop-ip>:8000/healthz` in the phone's browser (the server prints this address). You should see `{"status":"ok"}`.
+3. Copy `dist/KisanMitra-test.apk` to the phone and install it (allow "install unknown apps").
+
+**Step 5. Test**
+- Photo of a **rice leaf** → you get a disease name and treatment.
+- Photo of **anything else** → "This doesn't look like a rice leaf. Take a close, well-lit photo…"
+
+If the laptop's IP address changes (new Wi-Fi), run `py kisan.py apk` again and reinstall the app.
+
+---
+
+## Test without a phone
+
+With the server running (`py kisan.py serve` in another window):
+```
+py kisan.py diagnose data/train_images/blast     # rice photos  → [CLASSIFIED]
+py kisan.py diagnose some/other/photos           # other photos → [REJECTED]
+py kisan.py check                                # is everything loaded?
+```
+(`data/` is the Kaggle *Paddy Doctor* dataset, which is not in git. Use any rice photos you have.)
+
+### All the CLI commands
+
+| Command | What it does |
+|---|---|
+| `py kisan.py all` | Build the APK, then start the server |
+| `py kisan.py serve` | Start the server only |
+| `py kisan.py apk` | Build the APK only (re-run if your laptop's IP changes) |
+| `py kisan.py diagnose <photo or folder>` | Send photos to the server and show the verdict |
+| `py kisan.py check` | Is the server up? Are the model files there? |
+| `py kisan.py firewall` | Print the Windows firewall command |
+| `py kisan.py ip` | Show your laptop's Wi-Fi address |
+
+Notes for this test setup:
+- The server runs in **guest mode** (no login). Real login (SMS code) needs AWS.
+- You will see AWS/DynamoDB errors in the server window. They are harmless here; the diagnosis still works.
+- **Chat and voice** need an AI key in a `.env` file (copy `.env.example`). Photo diagnosis does not.
+
+---
 
 ## How it works
 
 ```
- phone photo ──▶ Crop gate ──▶ Disease classifier ──▶ Treatment (diseases.json) ──▶ Chat / Voice
-                  │                  │
-                  │ "is this a       │ 10 classes, 97.6% accuracy on held-out
-                  │  rice leaf?"     │ Paddy Doctor photos (EfficientNetV2-S)
-                  ▼
-            not a leaf → HTTP 422 "This doesn't look like a rice leaf. Take a close,
-                         well-lit photo of a single rice leaf and try again."
+photo → [1] Crop gate → [2] Disease model → [3] Confidence check → [4] Treatment → chat / voice
+          │
+          └─ not a rice leaf → rejected (HTTP 422), nothing is diagnosed
 ```
 
-1. **Crop gate** (`backend/models/crop_gate.tflite`). A small MobileNetV2 + logistic head that answers
-   "is this a rice leaf photo?". The disease model only knows 10 rice classes, so without the gate a
-   photo of a shoe still gets labelled "Brown Spot". Photos below the gate threshold are rejected and
-   nothing is diagnosed or stored.
-2. **Disease classifier** (`backend/models/paddy_disease_model_fold0.tflite`). EfficientNetV2-S trained on
-   the Kaggle *Paddy Doctor* dataset. Each prediction averages the image and its horizontal flip, then applies
-   temperature scaling so the confidence is calibrated.
-3. **Confidence check.** Below the recommended threshold the result is still shown but marked
-   `safe_to_act: false` with a warning; the app must keep that warning visible. A low-confidence "Normal"
-   never tells a farmer the crop is healthy.
-4. **Treatment.** Cause, severity, organic and chemical treatment come from the vetted knowledge base
-   `backend/diseases.json`, not from the model or an LLM.
-5. **Chat and voice.** An LLM answers questions grounded in that same knowledge base, optionally about
-   the diagnosis just made. Voice uses speech-to-text and text-to-speech around the same chat.
+1. **Crop gate** — answers "is this a rice leaf?". Without it, a photo of a shoe would still be called "Brown Spot".
+2. **Disease model** — picks one of 10 classes: Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight,
+   Blast, Brown Spot, Dead Heart, Downy Mildew, Hispa, Normal, Tungro.
+3. **Confidence check** — a low-confidence answer is still shown, but with a warning. A shaky "Normal" never tells a farmer the crop is healthy.
+4. **Treatment** — written by experts in `backend/diseases.json`. It never comes from the AI model.
+5. **Chat / voice** — an AI assistant answers questions using only that same treatment file.
 
-The 10 classes: Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight, Blast, Brown Spot,
-Dead Heart, Downy Mildew, Hispa, Normal, Tungro.
+Both models live in `backend/models/`:
 
-### How good is it?
-
-| Check | Result |
+| File | What it is |
 |---|---|
-| Disease model, held-out Paddy Doctor photos | 97.6% accuracy (`oof_accuracy` in `model_meta.json`) |
-| Crop gate, rice photos it never trained on (200) | 200/200 accepted |
-| Crop gate, other plants/weeds never trained on (960, Kaggle *Plant Seedlings*) | 959/960 rejected |
-| Crop gate, blank / noise / flat-colour / screenshot images | all rejected |
+| `crop_gate.tflite` + `crop_gate.json` | The crop gate |
+| `paddy_disease_model_fold0.tflite` + `model_meta.json` | The disease model |
 
-These are photos from datasets. Real farmer photos (bad light, blur, hands, soil) will score lower, so
-test on 100–200 labelled field photos before trusting it. The gate is tested against other plants but not
-yet against hands, soil or rice grain.
+### How accurate is it?
 
-## Quickstart: run it and test on your phone (no AWS needed)
-
-Requirements: Python 3.10+, and for the Android app Node.js 18+, JDK 17–21 and the Android SDK
-(Android Studio installs both).
-
-```bash
-pip install -r requirements.txt
-npm install                        # only needed to build the app
-
-py kisan.py all                    # build the debug APK, then start the backend
-```
-
-`kisan.py` is a dev CLI (standard library only; on Windows `kisan` also works):
-
-| Command | What it does |
+| Test | Result |
 |---|---|
-| `py kisan.py serve` | Start the backend in guest mode (no login), reachable from your phone at `http://<laptop-ip>:8000` |
-| `py kisan.py apk` | Point the app at this laptop's IP and build `dist/KisanMitra-test.apk` |
-| `py kisan.py all` | `apk`, then `serve` |
-| `py kisan.py check` | Is the backend up, are all four model files present, is `model_mode` `tflite`? |
-| `py kisan.py diagnose <photo or folder>` | Send photos through the real gate + classifier; prints `[CLASSIFIED]` or `[REJECTED]` |
-| `py kisan.py ip` / `firewall` | Show the laptop's LAN IP / print the Windows firewall command |
+| Disease model on photos it never saw | 97.6% correct |
+| Gate: 200 rice photos it never saw | 200 accepted |
+| Gate: 960 photos of other plants and weeds | 959 rejected |
+| Gate: blank, noise and screenshot images | all rejected |
 
-To use the app on a phone:
-1. Run `py kisan.py firewall` and run the command it prints in an **Administrator** PowerShell (once).
-   Windows blocks incoming connections on "Public" Wi-Fi.
-2. Keep the laptop and the phone on the **same Wi-Fi**. Check `http://<laptop-ip>:8000/healthz` in the phone's browser.
-3. Copy `dist/KisanMitra-test.apk` to the phone and install it (allow "install unknown apps").
-4. Keep the terminal running `serve`. Photos of rice leaves are classified; anything else is rejected.
+These are photos from datasets. Real farmer photos (poor light, blur, hands, soil) will score lower — test with 100–200 real field photos before trusting it.
 
-The IP is baked into the APK, so run `py kisan.py apk` again whenever the laptop's IP changes.
-In guest mode the server still tries to log to DynamoDB; those errors in the log are harmless, and
-`/diagnose` returns its result anyway. Chat needs an LLM key in `.env` (see Configuration).
+---
 
-Quick model check without a phone:
-```bash
-py kisan.py diagnose data/train_images/blast       # should classify as Blast
-py kisan.py diagnose path/to/random/photos         # should be rejected
-```
+## Settings you might change
 
-### Other ways to run the backend
-```bash
-./start.sh                                   # installs deps and starts the server
-cd backend && uvicorn main:app --port 8000   # manual
-docker-compose up --build -d                 # Docker; mounts ./backend/models read-only
-```
-The web app is served at `http://localhost:8000` once built (`npm run build` creates `web/dist`).
-API docs are at `/docs`.
+Copy `.env.example` to `.env`. You don't need to change anything to run the models.
 
-## Configuration
-
-Copy `.env.example` to `.env`. Nothing is required to run the models locally. Common settings:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `AUTH_DISABLED` | off | `1` = guest mode, no login (the CLI sets this for you; build the app with `VITE_AUTH_DISABLED=1`) |
-| `MODEL_PATH` | `backend/models` | Folder with the models (or one `.tflite`) |
-| `CROP_GATE` | `1` | `0` turns the gate off (every image is diagnosed) |
-| `CROP_GATE_THRESHOLD` | from `crop_gate.json` | Override the gate's cut-off |
-| `CONFIDENCE_THRESHOLD` | from `model_meta.json` | Below this a diagnosis is marked uncertain |
-| `MODEL_TTA` | `1` | Average over the image and its mirror image |
-| `MAX_IMAGE_SIZE_MB` | `10` | Upload limit |
-| `LLM_PROVIDER` | `sambanova` | Chat model: `sambanova`, `gemini`, `openai`, `anthropic`, `huggingface` |
-| `LLM_FALLBACK_PROVIDERS` | | Providers to try, in order, if the first fails |
-| `<PROVIDER>_API_KEY` | | `SAMBANOVA_`, `GEMINI_`, `OPENAI_`, `ANTHROPIC_`, `HUGGINGFACE_` |
-| `VOICE_STT_PROVIDER` | `mlx` | Speech-to-text: `mlx` (Apple Silicon, local), `bhashini` (cloud), `auto` |
-| `BHASHINI_USER_ID`, `BHASHINI_API_KEY`, `BHASHINI_PIPELINE_ID` | | Bhashini voice (also TTS) |
-| `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_DAY` | `10` / `200` | Per-farmer limits |
-| `CORS_ORIGINS` | `*` | Restrict in production, e.g. `https://localhost` |
-| `AWS_*`, `COGNITO_*`, `DYNAMODB_TABLE_PREFIX` | | Real login (SMS OTP) and data storage; created by `infra/` |
-
-See `backend/models/README.md` for the model-related settings in detail.
-
-## API
-
-Interactive docs at `/docs`. Main endpoints:
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/diagnose` | Photo → gate → disease, confidence, treatment. `422` if it isn't a rice leaf |
-| `POST` | `/diagnose/feedback` | Mark a diagnosis helpful / not helpful |
-| `GET` | `/diseases` | The full treatment knowledge base |
-| `POST` | `/chat` | Text chat, optionally with a diagnosis as context |
-| `GET` | `/voice/status` | Which speech providers are available |
-| `POST` | `/voice/stt`, `/voice/tts`, `/voice/chat` | Speech → text, text → speech, whole voice round trip |
-| `POST` | `/auth/otp/start`, `/auth/otp/verify`, `/auth/refresh`, `/auth/logout` | Farmer login by SMS code |
-| `GET`/`PATCH`/`DELETE` | `/auth/me` | Profile; delete my account and data |
-| `POST` | `/admin/auth/login`, `/admin/auth/challenge`, `/admin/auth/refresh`, `/admin/auth/logout` | Staff login (password + MFA) |
-| `GET` | `/dashboard`, `/dashboard/stats`, `/dashboard/recent` | Field-team dashboard (staff only) |
-| `GET` | `/health`, `/healthz` | Full status / cheap liveness check |
-
-## Project structure
-
-```
-backend/
-  main.py, schemas.py
-  inference.py             TFLite disease model + crop gate
-  chat_service.py          LLM chat grounded in diseases.json (multi-provider with fallback)
-  voice_service.py, bhashini_service.py, mlx_stt_service.py
-  auth_service.py          Cognito login / token checks
-  database.py              DynamoDB (users, diagnoses, stats, rate limits)
-  ratelimit.py             per-farmer limits
-  diseases.json            vetted treatment knowledge base
-  routers/                 health, diseases, diagnose, chat, voice, auth, dashboard
-  models/                  crop_gate.tflite/.json, paddy_disease_model_fold0.tflite, model_meta.json
-web/                       the farmer app (React + Vite, i18n: Hindi / Marathi / English)
-frontend/                  staff dashboard and legal pages
-android/, capacitor.config.ts   Android wrapper around web/
-infra/                     Terraform for AWS (ECS Fargate, DynamoDB, Cognito, WAF, ...)
-scripts/                   training / evaluation helpers (below)
-kisan.py                   dev CLI
-```
-
-## Training the models
-
-Both models are trained in Google Colab on a GPU and exported to TFLite; copy the output into `backend/models/`.
-
-| Notebook | Trains |
+| Setting | What it does |
 |---|---|
-| `Kisan_Mitra_Crop_and_NonCrop_Training.ipynb` | **Crop gate** (rice vs everything else) and optionally a single disease model. Set `TRAIN_DISEASE`, `TRAIN_GATE` at the top. Needs a Kaggle token. |
-| `Kisan_Mitra_Rice_Disease_Classifier_v3.ipynb` | Best disease model: 5-fold EfficientNetV2-S ensemble, pseudo-labelling, calibrated confidence threshold |
-| `Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb` | Original MobileNetV2 model (kept for reference) |
+| `LLM_PROVIDER` + its `..._API_KEY` | Which AI answers chat: `sambanova`, `gemini`, `openai`, `anthropic` or `huggingface` |
+| `CROP_GATE=0` | Turn the gate off (every photo gets a disease) |
+| `CROP_GATE_THRESHOLD` | How strict the gate is (default is in `crop_gate.json`) |
+| `CONFIDENCE_THRESHOLD` | Below this a diagnosis gets a warning (default is in `model_meta.json`) |
+| `BHASHINI_*`, `VOICE_STT_PROVIDER` | Voice (speech to text / text to speech) |
 
-The gate is trained on rice photos (positives) against textures, objects, animals and other crops' leaves
-(negatives), plus any photos of your own in a Drive folder. Add the wrong photos farmers actually take.
+The full list is in `.env.example`.
 
-Scripts: `train_crop_gate.py` (train the gate locally), `download_negatives.py` (fetch non-rice images),
-`eval_classifier.py` (measure the gate + classifier on a folder), `convert_to_tflite.py` (Keras → TFLite).
+---
 
-## Deploying
+## Retraining the models
 
-- **AWS (production):** see `DEPLOY.md` (Terraform in `infra/`, GitHub Actions in `.github/workflows/`).
-- **Android release build and Play Store:** see `MOBILE.md`. Release builds require an HTTPS backend.
+Training is done in Google Colab (free GPU), then the result is copied into `backend/models/`.
 
-## Troubleshooting
+| Notebook | Use it to |
+|---|---|
+| `Kisan_Mitra_Crop_and_NonCrop_Training.ipynb` | Train the **crop gate** (and optionally a disease model). Set `TRAIN_DISEASE` / `TRAIN_GATE` at the top. Needs a Kaggle token. |
+| `Kisan_Mitra_Rice_Disease_Classifier_v3.ipynb` | Train the best **disease model** (5-model ensemble) |
+| `Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb` | Older model, kept for reference |
 
-- **Every photo gets a disease:** the gate files are missing. `py kisan.py check` shows which; both
-  `crop_gate.tflite` and `crop_gate.json` must be in `backend/models/`. The server log says "Crop gate inactive".
-- **`model_mode` is `random`:** no model was found at `MODEL_PATH`, so predictions are random. Fix the path.
-- **Phone can't reach the laptop:** same Wi-Fi? Firewall rule added? Does `http://<laptop-ip>:8000/healthz` open on the phone?
-  Did the laptop's IP change (rebuild with `py kisan.py apk`)?
-- **A real rice leaf is rejected:** take a closer, well-lit photo that fills the frame. To loosen the gate set
-  `CROP_GATE_THRESHOLD` lower; to retrain it, add such photos and use the notebook above.
-- **DynamoDB / AWS errors in the log while testing locally:** expected without AWS. Diagnosis still works.
-- **Notebook export fails with `ERROR_NEEDS_FLEX_OPS`:** the notebook was exporting under mixed precision. Use the
-  current notebook, or restart the Colab runtime before running it.
+If the gate wrongly rejects real rice leaves, or accepts things it shouldn't, add example photos of those and retrain it.
+More detail: `backend/models/README.md`.
+
+---
+
+## Deploying for real
+
+- **Server on AWS:** see `DEPLOY.md`. Pushing to the `phase-1-mvp` branch runs `.github/workflows/deploy.yml`.
+- **Play Store build:** see `MOBILE.md` (needs an HTTPS server).
+- Other ways to run the server: `./start.sh`, or `docker-compose up --build`. API docs are at `http://localhost:8000/docs`.
+
+---
+
+## Something not working?
+
+| Problem | Fix |
+|---|---|
+| Every photo gets a disease, nothing is rejected | Gate files are missing. Run `py kisan.py check`; both `crop_gate.tflite` and `crop_gate.json` must be in `backend/models/`. |
+| Phone can't reach the laptop | Same Wi-Fi? Firewall command run as Administrator? Does `http://<laptop-ip>:8000/healthz` open on the phone? Did the IP change (re-run `py kisan.py apk`)? |
+| A real rice leaf is rejected | Take a closer, well-lit photo that fills the frame. Or lower `CROP_GATE_THRESHOLD`, or retrain the gate with more photos like it. |
+| `py kisan all` fails with a SyntaxError | Use `py kisan.py all` or `kisan all`. |
+| Predictions look random | The disease model wasn't found (`model_mode` is `random`). Check `backend/models/`. |
+| Colab export error `ERROR_NEEDS_FLEX_OPS` | Restart the Colab runtime and re-run the current notebook. |
+
+---
+
+## Where things are
+
+```
+backend/        the server (Python / FastAPI)
+  models/         the two AI models
+  diseases.json   expert treatment advice
+web/            the farmer app (React) — also packed into the Android app
+android/        Android wrapper
+frontend/       staff dashboard and privacy pages
+infra/          AWS setup (Terraform)
+scripts/        training and testing helpers
+kisan.py        the dev CLI used above
+```
 
 ## License
 

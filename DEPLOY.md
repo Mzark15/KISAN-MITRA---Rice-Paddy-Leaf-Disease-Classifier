@@ -1,56 +1,73 @@
-# Deploying the Kisan Mitra backend (Railway)
+# Deploying Kisan Mitra on AWS
 
-This deploys `backend/` + `frontend/` using the existing `Dockerfile`. `railway.json`
-already tells Railway to build with that Dockerfile and health-check `/health`.
+Production runs entirely on AWS, defined in `infra/` (Terraform) and shipped by
+`.github/workflows/deploy.yml`.
 
-## Why Railway
+```
+Android app / web ─HTTPS─▶ WAF ─▶ ALB (2 AZs) ─▶ ECS Fargate tasks (private subnets, autoscaled)
+                                                    ├─ DynamoDB      (users, diagnoses, stats, rate limits; PITR on)
+                                                    ├─ Cognito       (farmer SMS-OTP pool, staff pool)
+                                                    ├─ Secrets Manager (Cognito client secrets, LLM keys)
+                                                    └─ LLM / Bhashini APIs via NAT
+```
 
-You already have a working `Dockerfile` — Railway builds directly from it with
-almost no extra setup, gives you a free HTTPS domain (the mobile app requires
-HTTPS), and supports a persistent volume for the SQLite database on the Hobby
-plan (~$5/month once you're past the free trial).
+The API container is stateless, so capacity is just the number of tasks. Autoscaling adds
+tasks on CPU (target 55%) and requests per task (target 300), between `min_tasks` and
+`max_tasks`. Per-farmer limits (`RATE_LIMIT_PER_MINUTE`, `RATE_LIMIT_PER_DAY`) and a per-IP WAF
+rule protect the paid LLM/SMS calls.
 
-## Important: MLX voice will NOT work here
+## 1. One-time setup
 
-`mlx_stt_service.py` only runs on Apple Silicon (`platform.system() == "Darwin"`).
-Railway's containers are Linux. In production, voice falls back to whatever
-`VOICE_STT_PROVIDER` you configure — set it to `bhashini` (with real
-`BHASHINI_USER_ID` / `BHASHINI_API_KEY`) or leave STT unconfigured and let the
-frontend fall back to the browser's Web Speech API. Diagnosis and text chat are
-unaffected — those don't depend on the host OS.
-
-## Steps
-
-1. **Push this repo to GitHub** (if not already) — Railway deploys from a GitHub repo.
-2. **Create a new Railway project** → Deploy from GitHub repo → select this repo.
-   Railway will detect the `Dockerfile` and `railway.json` automatically.
-3. **Add a persistent volume** (Railway dashboard → your service → Volumes):
-   - Mount path: `/app/data`
-   - This is where the SQLite database lives. Without this, every redeploy
-     wipes all diagnosis history, chat logs, and feedback.
-4. **Set environment variables** (Railway dashboard → Variables). Copy every key
-   from `.env.example`, filling in real values:
-   - `LLM_PROVIDER=sambanova`, `SAMBANOVA_API_KEY=<rotate this — see note below>`,
-     `SAMBANOVA_MODEL=Meta-Llama-3.3-70B-Instruct`
-   - `DB_PATH=/app/data/kisan_mitra.db` — must match the volume mount path above
-   - `MODEL_PATH=/app/backend/models/paddy_disease_model.tflite` (already the
-     Dockerfile default — only set this if you want to override it)
-   - `MODEL_INPUT_SIZE=224`, `MODEL_PREPROCESS=none`
-   - `VOICE_STT_PROVIDER=bhashini` (or omit — see MLX note above)
-   - `BHASHINI_USER_ID`, `BHASHINI_API_KEY`, `BHASHINI_PIPELINE_ID` if using Bhashini
-   - `DASHBOARD_PASSWORD=<pick something that isn't kisan123>`
-5. **Deploy.** Railway builds the Dockerfile and starts the container. Check
-   the `/health` endpoint on your Railway-assigned domain once it's live.
-6. **Point the mobile app at it** — edit `capacitor.config.json`:
-   ```json
-   "server": { "url": "https://your-app.up.railway.app" }
+1. **Remote Terraform state.** Uncomment the `backend "s3"` block in `infra/versions.tf` and
+   create that bucket first (versioned, encrypted, private). State holds secrets.
+2. **Certificate.** Request an ACM certificate for your API domain in `ap-south-1` and validate it.
+3. **Variables.** Copy `infra/terraform.tfvars.example` to `infra/terraform.tfvars` and set at least:
+   ```hcl
+   environment         = "prod"
+   admin_email         = "ops@yourdomain"
+   acm_certificate_arn = "arn:aws:acm:ap-south-1:...:certificate/..."
+   deletion_protection = true
+   github_repo         = "owner/repo"
    ```
-   Drop `"cleartext": true` entirely once you're on `https`. Then `npm run sync`.
+4. **Create the registry, push a first image, then the rest.** The service needs an image to start:
+   ```bash
+   cd infra && terraform init
+   terraform apply -target=aws_ecr_repository.api
+   aws ecr get-login-password | docker login --username AWS --password-stdin <ecr_repository_url>
+   docker build -t <ecr_repository_url>:bootstrap .. && docker push <ecr_repository_url>:bootstrap
+   terraform apply
+   ```
+5. **DNS.** Point your API domain (CNAME/alias) at the ALB (`terraform output api_url`).
+6. **Secrets.** Put real provider keys in Secrets Manager (they never enter Terraform state):
+   ```bash
+   aws secretsmanager put-secret-value --secret-id kisan-mitra-prod/llm \
+     --secret-string '{"SAMBANOVA_API_KEY":"...","GEMINI_API_KEY":"...","BHASHINI_API_KEY":"..."}'
+   ```
+7. **Rotate any key that was ever committed** (an earlier SambaNova key is in git history).
+8. **GitHub.** Set repository variables `AWS_DEPLOY_ROLE_ARN` (`terraform output github_deploy_role_arn`)
+   and `ENVIRONMENT` (`prod`). Confirm the SNS alert email subscription.
+9. **SMS (India).** Register the OTP template on the DLT portal and raise
+   `sms_monthly_spend_limit_usd` before launch.
 
-## Before you deploy — rotate the SambaNova key
+## 2. Every release
 
-The `SAMBANOVA_API_KEY` currently in `.env` was committed to this repo's git
-history earlier (before `.gitignore` excluded `.env`). Anyone with repo access
-can read old commits and get that key. Generate a new one in your SambaNova
-dashboard before going live, and only put the new key in Railway's environment
-variables — never back in a committed file.
+Push to `phase-1-mvp`. The workflow builds the app and image, pushes `<sha>` to ECR, and rolls the
+ECS service. Failed health checks roll back automatically (deployment circuit breaker).
+
+## 3. Operating it
+
+| Concern | Where |
+|---|---|
+| Logs | CloudWatch `/ecs/kisan-mitra-<env>` (30-day retention) |
+| Alerts | SNS email: ALB 5xx, unhealthy targets, p95 latency, CPU |
+| Backups | DynamoDB point-in-time recovery |
+| Scale limits | `min_tasks` / `max_tasks` (also the bill ceiling) |
+| Cost drivers | Fargate tasks, NAT gateways, SMS, LLM calls |
+
+Before real launch traffic, load-test `/diagnose` (CPU-bound: expect roughly one image per second
+per vCPU) and tune `task_cpu`, `max_tasks` and the autoscaling targets from the results.
+
+## 4. Local development
+
+`./start.sh` or `docker compose up` run the API against a dev AWS stack (`terraform output -raw
+backend_env > .env`). Android testing: see `MOBILE.md`.

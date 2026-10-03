@@ -27,24 +27,82 @@ class DiagnosisContext(BaseModel):
     """Passed from diagnosis result into the chat so the AI gives disease-specific advice."""
     disease: str
     confidence: float
+    safe_to_act: bool                   = Field(True, description="False when the photo result was low-confidence")
+    alternatives: list[str]             = Field(default_factory=list, description="Other likely diseases (top 3 minus the first)")
+
+
+# ---------------------------------------------------------------------------
+# /auth
+# ---------------------------------------------------------------------------
+
+class OtpStartRequest(BaseModel):
+    phone: str                          = Field(..., max_length=20, example="9876543210")
+
+
+class OtpStartResponse(BaseModel):
+    phone: str                          = Field(..., description="Normalised E.164 number, e.g. +919876543210")
+    flow: Literal["signup", "signin"]   = Field(..., description="Send back unchanged to /auth/otp/verify")
+    session: Optional[str]              = Field(None, description="Send back unchanged to /auth/otp/verify")
+    resend_after: int                   = Field(..., description="Seconds before another code may be requested")
+
+
+class OtpVerifyRequest(BaseModel):
+    phone: str                          = Field(..., max_length=20)
+    code: str                           = Field(..., max_length=8)
+    flow: Literal["signup", "signin"]
+    session: Optional[str]              = Field(None, max_length=4096)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str                  = Field(..., max_length=8192)
+    username: str                       = Field(..., max_length=128)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str                  = Field(..., max_length=8192)
+
+
+class ProfileUpdate(BaseModel):
+    language: Optional[Literal["hi", "mr", "en"]] = None
+    village: Optional[str]              = Field(None, max_length=100)
+    name: Optional[str]                 = Field(None, max_length=100)
+
+
+class StaffLoginRequest(BaseModel):
+    email: str                          = Field(..., max_length=254)
+    password: str                       = Field(..., max_length=256)
+
+
+class StaffChallengeRequest(BaseModel):
+    username: str                       = Field(..., max_length=128)
+    challenge: Literal["NEW_PASSWORD_REQUIRED", "MFA_SETUP", "SOFTWARE_TOKEN_MFA"]
+    session: str                        = Field(..., max_length=4096)
+    new_password: Optional[str]         = Field(None, max_length=256)
+    code: Optional[str]                 = Field(None, max_length=8)
 
 
 # ---------------------------------------------------------------------------
 # /diagnose
 # ---------------------------------------------------------------------------
 
+class PredictionScore(BaseModel):
+    disease: str
+    confidence: float                   = Field(..., ge=0, le=100)
+
+
 class DiagnoseResponse(BaseModel):
     disease: str                        = Field(..., example="Brown Spot")
     confidence: float                   = Field(..., ge=0, le=100, example=87.4)
     treatment: TreatmentInfo
-    diagnosis_id: int                   = Field(..., description="DB row ID; use this for feedback submission")
+    diagnosis_id: str                   = Field(..., description="Diagnosis ID; use this for feedback submission")
     model_mode: str                     = Field(..., example="tflite", description="'tflite' = real model, 'random' = demo stub")
     safe_to_act: bool                   = Field(..., description="False when confidence is too low — ask farmer for clearer photo")
     low_confidence_message: Optional[str] = Field(None, description="Populated when safe_to_act is False")
+    top_predictions: list[PredictionScore] = Field(default_factory=list, description="Top 3 classes, highest first")
 
 
 class FeedbackRequest(BaseModel):
-    diagnosis_id: int
+    diagnosis_id: str                   = Field(..., max_length=64)
     helpful: bool
 
 

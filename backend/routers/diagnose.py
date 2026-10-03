@@ -5,21 +5,25 @@ Accepts a rice leaf photo, runs the TFLite classifier (or random stub in dev),
 looks up the vetted treatment from diseases.json, logs to SQLite, and returns
 a structured result with confidence, treatment, and a KVK referral flag.
 
-To change the confidence threshold: set CONFIDENCE_THRESHOLD env var (default 60.0).
+Confidence threshold: CONFIDENCE_THRESHOLD env var if set, otherwise the
+recommended_threshold from model_meta.json (v3 notebook), otherwise 60.0.
 """
 
+import asyncio
 import io
 import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 
 import database
-from inference import DiseaseModel, get_model
+from auth_service import Farmer
+from ratelimit import limit_farmer
+from inference import DiseaseModel, get_gate, get_model
 from routers.diseases import load_diseases
-from schemas import DiagnoseResponse, TreatmentInfo
+from schemas import DiagnoseResponse, PredictionScore, TreatmentInfo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,7 +38,17 @@ MAX_IMAGE_BYTES = int(os.environ.get("MAX_IMAGE_SIZE_MB", "10")) * 1024 * 1024
 # top guess is still shown (not hidden) but flagged as unverified via safe_to_act
 # and low_confidence_message — see the confidence gate below.
 # Override: set CONFIDENCE_THRESHOLD env var (e.g. CONFIDENCE_THRESHOLD=70)
-CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "60.0"))
+DEFAULT_CONFIDENCE_THRESHOLD = 60.0
+
+
+def _confidence_threshold(model: DiseaseModel) -> float:
+    """Env var wins; then the threshold calibrated in model_meta.json; then 60%."""
+    env_value = os.environ.get("CONFIDENCE_THRESHOLD")
+    if env_value:
+        return float(env_value)
+    if model.recommended_threshold is not None:
+        return float(model.recommended_threshold)
+    return DEFAULT_CONFIDENCE_THRESHOLD
 
 
 def _open_image(contents: bytes) -> Image.Image:
@@ -76,6 +90,7 @@ async def diagnose(
     image: UploadFile = File(..., description="JPEG / PNG / WebP rice leaf photo"),
     village: Optional[str] = Form(None, description="Farmer's village (optional, stored for pilot tracking)"),
     language: str = Form("hi", description="Farmer's language code: hi / mr / en"),
+    farmer: Farmer = Depends(limit_farmer("diagnose")),
 ):
     """
     Upload a rice leaf photo → get disease name, confidence, and vetted treatment advice.
@@ -86,6 +101,10 @@ async def diagnose(
       but with `safe_to_act=False` and `low_confidence_message` set. Treat this as an
       unverified hint, not a confirmed diagnosis — the frontend must keep the warning
       visible whenever `safe_to_act` is False.
+
+    **Crop gate**: before the disease model runs, a separate gate checks the photo really is
+    a rice leaf. Anything else (people, objects, other plants, blank frames) is rejected
+    with HTTP 422 and no diagnosis is stored. See `scripts/train_crop_gate.py`.
 
     **model_mode** in the response:
     - `tflite` — real trained model loaded, predictions are meaningful.
@@ -113,19 +132,33 @@ async def diagnose(
     img = _open_image(contents)
 
     # --- Run inference ---
+    # Runs in a worker thread: an ensemble with TTA takes a few seconds on CPU and
+    # would otherwise block every other request on the event loop.
     model: DiseaseModel = get_model()
+
+    # --- Crop gate: reject photos that aren't a rice leaf before predicting any disease ---
+    gate = get_gate()
     try:
-        disease_name, confidence = model.predict(img)
-    except ValueError as exc:
-        # Model output index out of range — class count mismatch between model and code
-        logger.error("Inference class mismatch: %s", exc)
+        is_leaf, leaf_p = await asyncio.to_thread(gate.is_rice_leaf, img)
+    except Exception as exc:
+        logger.exception("Crop gate error")
+        raise HTTPException(status_code=500, detail=f"Inference error: {exc}") from exc
+    if not is_leaf:
+        logger.info("Rejected non-rice image (leaf probability %.3f < %.3f)", leaf_p, gate.threshold)
         raise HTTPException(
-            status_code=500,
-            detail="Model output does not match expected classes. Check MODEL_PATH and class list.",
-        ) from exc
+            status_code=422,
+            detail=(
+                "This doesn't look like a rice leaf. Take a close, well-lit photo of a single "
+                "rice leaf (fill the frame with the leaf) and try again."
+            ),
+        )
+
+    try:
+        top = await asyncio.to_thread(model.predict_top, img, 3)
     except Exception as exc:
         logger.exception("Unexpected inference error")
         raise HTTPException(status_code=500, detail=f"Inference error: {exc}") from exc
+    disease_name, confidence = top[0]
 
     # --- Confidence gate ---
     # Below threshold, we don't hide the model's guess — we still show it (and its
@@ -133,26 +166,41 @@ async def diagnose(
     # and low_confidence_message flag it clearly as unverified. The frontend must
     # keep showing that warning prominently whenever safe_to_act is False; treat
     # the accompanying treatment/disease name as a hint, not a confirmed diagnosis.
-    safe_to_act = confidence >= CONFIDENCE_THRESHOLD
+    safe_to_act = confidence >= _confidence_threshold(model)
     low_confidence_message: Optional[str] = None
     if not safe_to_act:
-        low_confidence_message = (
-            f"Low confidence ({confidence:.1f}%) — this is the model's best guess, not a "
-            "confirmed diagnosis. Take a closer, well-lit photo of the affected leaf and "
-            "try again, or consult your KVK before acting on this."
-        )
+        if disease_name == "Normal":
+            # Never tell a farmer the crop is healthy on a low-confidence guess.
+            low_confidence_message = (
+                f"Low confidence ({confidence:.1f}%) — the photo is unclear, so we cannot "
+                "confirm the plant is healthy. Take a closer, well-lit photo of the leaf "
+                "and try again, or consult your KVK."
+            )
+        else:
+            low_confidence_message = (
+                f"Low confidence ({confidence:.1f}%) — this is the model's best guess, not a "
+                "confirmed diagnosis. Take a closer, well-lit photo of the affected leaf and "
+                "try again, or consult your KVK before acting on this."
+            )
 
     # --- Fetch vetted treatment ---
     treatment = _get_treatment(disease_name)
 
-    # --- Log to database (non-blocking) ---
-    diagnosis_id = await database.insert_diagnosis(
-        disease=disease_name,
-        confidence=round(confidence, 2),
-        model_mode=model.model_mode,
-        language=language,
-        village=village or None,
-    )
+    # --- Log to database ---
+    # Logging must never block the diagnosis: with no database (e.g. a laptop test backend)
+    # the farmer still gets the result, just without a feedback id.
+    try:
+        diagnosis_id = await database.insert_diagnosis(
+            user_id=farmer.user_id,
+            disease=disease_name,
+            confidence=round(confidence, 2),
+            model_mode=model.model_mode,
+            language=language,
+            village=village or None,
+        )
+    except Exception as exc:
+        logger.error("Could not store diagnosis, returning result anyway: %s", exc)
+        diagnosis_id = ""
 
     return DiagnoseResponse(
         disease=disease_name,
@@ -162,4 +210,7 @@ async def diagnose(
         model_mode=model.model_mode,
         safe_to_act=safe_to_act,
         low_confidence_message=low_confidence_message,
+        top_predictions=[
+            PredictionScore(disease=name, confidence=round(conf, 2)) for name, conf in top
+        ],
     )

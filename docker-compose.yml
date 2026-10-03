@@ -5,14 +5,11 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/models:/app/backend/models:ro
-      - ./data:/app/data
     env_file:
       - .env
     environment:
-      - MODEL_PATH=/app/backend/models/paddy_disease_model.tflite
-      - MODEL_INPUT_SIZE=224
+      - MODEL_PATH=/app/backend/models
       - MODEL_PREPROCESS=none
-      - DB_PATH=/app/data/kisan_mitra.db
       - LLM_PROVIDER=${LLM_PROVIDER:-sambanova}
       - SAMBANOVA_API_KEY=${SAMBANOVA_API_KEY:-}
       - SAMBANOVA_BASE_URL=${SAMBANOVA_BASE_URL:-https://api.sambanova.ai/v1}
@@ -26,5 +23,4 @@ services:
       - BHASHINI_USER_ID=${BHASHINI_USER_ID:-}
       - BHASHINI_API_KEY=${BHASHINI_API_KEY:-}
       - BHASHINI_PIPELINE_ID=${BHASHINI_PIPELINE_ID:-}
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-kisan123}
     restart: unless-stopped

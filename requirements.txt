@@ -10,7 +10,8 @@ tensorflow
 openai
 anthropic
 google-genai
-aiosqlite
+boto3>=1.38
+PyJWT[crypto]>=2.8
 aiofiles
 httpx
 python-dotenv

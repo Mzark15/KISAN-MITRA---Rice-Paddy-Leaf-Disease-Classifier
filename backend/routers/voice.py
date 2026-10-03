@@ -13,17 +13,20 @@ STT provider is selected by VOICE_STT_PROVIDER env var:
   auto     = try MLX first, then Bhashini
 """
 
+import asyncio
 import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
 import chat_service
 import database
+from auth_service import Farmer
+from ratelimit import limit_farmer
 import voice_service
-from schemas import DiagnosisContext, VoiceChatResponse, VoiceSTTResponse, VoiceTTSRequest
+from schemas import ChatMessage, DiagnosisContext, VoiceChatResponse, VoiceSTTResponse, VoiceTTSRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -49,6 +52,7 @@ def voice_status():
 async def speech_to_text(
     audio: UploadFile = File(..., description="Audio file (webm from browser MediaRecorder, or wav)"),
     language: str = Form("hi", description="Expected language code: hi / mr / en / ta / te / kn etc."),
+    farmer: Farmer = Depends(limit_farmer("voice")),
 ):
     """
     Convert farmer's voice recording to text.
@@ -86,7 +90,7 @@ async def speech_to_text(
 
 
 @router.post("/tts", summary="Text to speech (Bhashini)")
-async def text_to_speech(request: VoiceTTSRequest):
+async def text_to_speech(request: VoiceTTSRequest, farmer: Farmer = Depends(limit_farmer("voice"))):
     """
     Convert text to audio bytes using Bhashini TTS.
 
@@ -127,6 +131,11 @@ async def voice_chat(
         None,
         description="JSON-encoded DiagnosisContext from a recent /diagnose call (optional)",
     ),
+    conversation_history: Optional[str] = Form(
+        None,
+        description="JSON-encoded list of {role, content} chat turns, same as /chat (optional)",
+    ),
+    farmer: Farmer = Depends(limit_farmer("voice")),
 ):
     """
     Full voice pipeline in one request:
@@ -179,15 +188,23 @@ async def voice_chat(
             ctx = DiagnosisContext(**json.loads(diagnosis_context))
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             logger.warning("Could not parse diagnosis_context JSON: %s", exc)
+
+    history: list[ChatMessage] = []
+    if conversation_history:
+        try:
+            history = [ChatMessage(**m) for m in json.loads(conversation_history)]
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Could not parse conversation_history JSON: %s", exc)
             # Non-fatal — continue without context
 
     # --- Step 2: LLM chat ---
     try:
-        reply_text = chat_service.generate_reply(
+        reply_text = await asyncio.to_thread(
+            chat_service.generate_reply,
             message=transcript,
             language=language,
             diagnosis_context=ctx,
-            conversation_history=[],
+            conversation_history=history,
         )
     except chat_service.ChatNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

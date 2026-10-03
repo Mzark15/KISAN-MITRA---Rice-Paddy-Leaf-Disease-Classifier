@@ -17,6 +17,7 @@ To add a new provider:
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -55,8 +56,9 @@ HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1"
 
 SAMBANOVA_BASE_URL = "https://api.sambanova.ai/v1"
 
-MAX_HISTORY_MESSAGES = 6     # Maximum number of past turns sent to the LLM (keeps token usage low)
-MAX_OUTPUT_TOKENS    = 600   # Enough room for a detailed, jargon-free explanation (not just 3-5 terse sentences)
+MAX_HISTORY_MESSAGES = 12    # Past messages sent to the LLM (6 user/assistant turns)
+MAX_OUTPUT_TOKENS    = 1200  # Hindi/Marathi (Devanagari) use ~3x the tokens of English; 600 cut replies off
+REQUEST_TIMEOUT_S    = float(os.environ.get("LLM_TIMEOUT_SECONDS", "25"))  # per provider, then fall back
 
 DISEASES_FILE = Path(__file__).resolve().parent / "diseases.json"
 
@@ -85,8 +87,16 @@ STRICT RULES — follow these exactly:
    - Use short sentences and common words. Prefer concrete instructions ("spray in the early morning or evening,
      not in strong sun") over vague ones ("apply appropriately").
    - It is fine to take a little more space if it means the farmer actually understands what to do.
-5. For Tungro or Bacterial Panicle Blight, always end with: "अपने नजदीकी KVK या कृषि अधिकारी से सलाह लें।"
-6. If a diagnosis_context is given in the message, give advice specific to that disease.
+5. For Tungro or Bacterial Panicle Blight, always end with this sentence in the farmer's language:
+   hi: "अपने नजदीकी KVK या कृषि अधिकारी से सलाह लें।"
+   mr: "आपल्या जवळच्या KVK किंवा कृषी अधिकाऱ्यांचा सल्ला घ्या."
+   en: "Please consult your nearest KVK or agriculture officer."
+6. If a "Diagnosis context" line is given, give advice specific to that disease. If it says the photo result
+   is UNCONFIRMED, say clearly that the photo check was not sure, mention the other possibilities it lists,
+   ask the farmer to describe what they see or take a clearer photo, and do not recommend chemical sprays
+   until the disease is confirmed.
+7. Write plain text only: no markdown, no **bold**, no # headings, no tables. For steps, start each line
+   with "1.", "2." and so on. Replies may be read aloud by text-to-speech.
 
 --- KNOWLEDGE BASE ---
 {diseases_json}
@@ -184,8 +194,31 @@ def error_message(language: str) -> str:
 
 
 def trim_history(history: list[ChatMessage]) -> list[ChatMessage]:
-    """Keep only the last MAX_HISTORY_MESSAGES turns to avoid token limit issues."""
-    return history[-MAX_HISTORY_MESSAGES:]
+    """
+    Keep the last MAX_HISTORY_MESSAGES messages, in a shape every provider accepts.
+
+    Anthropic and Gemini reject a history that starts with an assistant message or
+    has two messages from the same role in a row, which trimming or a failed reply
+    on the client can easily produce. Drop empty messages, merge same-role runs,
+    and make sure the history starts with a user message and ends with an
+    assistant one (the new user message is appended after it).
+    """
+    cleaned: list[ChatMessage] = []
+    for h in history:
+        content = h.content.strip()
+        if not content:
+            continue
+        if cleaned and cleaned[-1].role == h.role:
+            cleaned[-1] = ChatMessage(role=h.role, content=f"{cleaned[-1].content}\n{content}")
+        else:
+            cleaned.append(ChatMessage(role=h.role, content=content))
+
+    cleaned = cleaned[-MAX_HISTORY_MESSAGES:]
+    while cleaned and cleaned[0].role != "user":
+        cleaned.pop(0)
+    while cleaned and cleaned[-1].role != "assistant":
+        cleaned.pop()
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +239,6 @@ def _strip_leaked_preamble(reply: str) -> str:
     with "Farmer language: hi" or "Message: ..." — instead of just answering.
     Strip that leaked scaffolding so it never reaches the farmer.
     """
-    import re
     cleaned = reply
     for _ in range(2):  # strip up to two leaked lines (language tag, then message echo)
         cleaned = re.sub(
@@ -216,6 +248,19 @@ def _strip_leaked_preamble(reply: str) -> str:
             flags=re.IGNORECASE,
         )
     return cleaned.strip() or reply.strip()  # never return empty — fall back to original
+
+
+def _strip_markdown(reply: str) -> str:
+    """
+    Models still add markdown now and then despite the prompt. The frontend shows
+    replies as plain text and TTS reads them aloud, so "**" and "#" would appear
+    or be spoken literally. Remove the common markers, keep the text.
+    """
+    text = re.sub(r"\*\*(.+?)\*\*|__(.+?)__", lambda m: m.group(1) or m.group(2), reply)
+    text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.MULTILINE)      # headings
+    text = re.sub(r"^(\s*)[*-]\s+", r"\1• ", text, flags=re.MULTILINE)    # bullets
+    text = re.sub(r"(?<![\w*])\*(?![\s*])(.+?)(?<![\s*])\*(?![\w*])", r"\1", text)  # *italic*
+    return text.strip()
 
 
 def _build_user_message(
@@ -229,10 +274,15 @@ def _build_user_message(
     """
     parts = [f"Farmer language: {language}", f"Message: {message}"]
     if diagnosis_context:
-        parts.append(
-            f"Diagnosis context: {diagnosis_context.disease} "
+        line = (
+            f"Diagnosis context: photo check suggests {diagnosis_context.disease} "
             f"(confidence {diagnosis_context.confidence:.1f}%)"
         )
+        if not diagnosis_context.safe_to_act:
+            line += " — UNCONFIRMED, the photo check was not sure"
+            if diagnosis_context.alternatives:
+                line += f"; other possibilities: {', '.join(diagnosis_context.alternatives)}"
+        parts.append(line)
     return "\n".join(parts)
 
 
@@ -261,7 +311,7 @@ def _generate_sambanova(user_msg: str, history: list[ChatMessage]) -> str:
     model    = os.environ.get("SAMBANOVA_MODEL", DEFAULT_MODELS["sambanova"])
 
     try:
-        client   = OpenAI(base_url=base_url, api_key=api_key)
+        client   = OpenAI(base_url=base_url, api_key=api_key, timeout=REQUEST_TIMEOUT_S, max_retries=0)
         response = client.chat.completions.create(
             model=model,
             messages=_openai_messages(user_msg, history),
@@ -293,7 +343,7 @@ def _generate_huggingface(user_msg: str, history: list[ChatMessage]) -> str:
     model    = os.environ.get("HUGGINGFACE_MODEL", DEFAULT_MODELS["huggingface"])
 
     try:
-        client   = OpenAI(base_url=base_url, api_key=api_key)
+        client   = OpenAI(base_url=base_url, api_key=api_key, timeout=REQUEST_TIMEOUT_S, max_retries=0)
         response = client.chat.completions.create(
             model=model,
             messages=_openai_messages(user_msg, history),
@@ -324,7 +374,10 @@ def _generate_gemini(user_msg: str, history: list[ChatMessage]) -> str:
     model_name = os.environ.get("GEMINI_MODEL", DEFAULT_MODELS["gemini"])
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=int(REQUEST_TIMEOUT_S * 1000)),  # milliseconds
+        )
         gemini_history = [
             types.Content(
                 role="user" if h.role == "user" else "model",
@@ -338,6 +391,7 @@ def _generate_gemini(user_msg: str, history: list[ChatMessage]) -> str:
             config=types.GenerateContentConfig(
                 system_instruction=_get_system_prompt(),
                 max_output_tokens=MAX_OUTPUT_TOKENS,
+                temperature=0.2,
             ),
         )
         resp = chat.send_message(user_msg)
@@ -361,7 +415,7 @@ def _generate_openai(user_msg: str, history: list[ChatMessage]) -> str:
     model = os.environ.get("OPENAI_MODEL", DEFAULT_MODELS["openai"])
 
     try:
-        client   = OpenAI(api_key=api_key)
+        client   = OpenAI(api_key=api_key, timeout=REQUEST_TIMEOUT_S, max_retries=0)
         response = client.chat.completions.create(
             model=model,
             messages=_openai_messages(user_msg, history),
@@ -388,7 +442,7 @@ def _generate_anthropic(user_msg: str, history: list[ChatMessage]) -> str:
     model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODELS["anthropic"])
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=api_key, timeout=REQUEST_TIMEOUT_S, max_retries=0)
         msgs   = [{"role": h.role, "content": h.content} for h in history]
         msgs.append({"role": "user", "content": user_msg})
         resp   = client.messages.create(
@@ -396,6 +450,7 @@ def _generate_anthropic(user_msg: str, history: list[ChatMessage]) -> str:
             max_tokens=MAX_OUTPUT_TOKENS,
             system=_get_system_prompt(),
             messages=msgs,
+            temperature=0.2,
         )
         reply = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
     except anthropic.APIError as exc:
@@ -427,6 +482,9 @@ def generate_reply(
     turns into a dead end for the farmer. With one, the app quietly tries the
     next configured provider and the farmer just gets an answer.
 
+    Blocking (the SDK calls are synchronous) — call it via asyncio.to_thread from
+    async routes so one slow provider doesn't freeze the whole server.
+
     Raises:
         ChatNotConfiguredError: No provider in the chain has an API key set.
                                 Caller should return HTTP 503.
@@ -456,15 +514,19 @@ def generate_reply(
     for i, provider in enumerate(configured_chain):
         fn = generators[provider]
         try:
-            reply = _strip_leaked_preamble(fn(user_msg, history))
+            reply = _strip_markdown(_strip_leaked_preamble(fn(user_msg, history)))
             if i > 0:
                 logger.warning(
                     "Chat fallback: '%s' failed, '%s' handled this reply instead.",
                     configured_chain[0], provider,
                 )
             return reply
-        except ChatServiceError as exc:
-            last_error = exc
+        except Exception as exc:
+            # Any failure (API error, timeout, SDK bug, unexpected response shape)
+            # moves on to the next provider instead of surfacing as a 500.
+            last_error = exc if isinstance(exc, ChatServiceError) else ChatServiceError(
+                f"{provider}: {type(exc).__name__}: {exc}"
+            )
             logger.warning("Provider '%s' failed (%s), trying next in chain...", provider, exc)
             continue
 

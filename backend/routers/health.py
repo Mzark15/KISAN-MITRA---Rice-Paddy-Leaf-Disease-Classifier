@@ -8,25 +8,32 @@ The frontend calls this on load to decide what to show.
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
+import auth_service
 import chat_service
 import voice_service
-from inference import DISEASE_CLASSES, INPUT_SIZE, MODEL_ARCH, PREPROCESS_MODE, get_model
+from inference import PREPROCESS_MODE, TTA_ENABLED, get_model
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/healthz", include_in_schema=False)
+def healthz():
+    """Cheap liveness probe for load balancers: no model, DB or provider calls."""
+    return {"status": "ok"}
+
+
 @router.get("/health", summary="Full system health check")
-def health():
+def health(request: Request):
     """
     Returns the status of all major components.
 
     **model_mode:**
     - `tflite` — real trained model loaded. Predictions are meaningful.
     - `random`  — no .tflite file found. Demo stub active (predictions are random).
-                  Place your model at backend/models/paddy_disease_model.tflite to fix.
+                  Place your model(s) in backend/models/ to fix.
 
     **chat_configured:**
     - True when the LLM API key for the active provider is set.
@@ -42,11 +49,18 @@ def health():
         # Model
         "model_loaded":      model.is_loaded,
         "model_mode":        model.model_mode,       # tflite | random
-        "model_arch":        MODEL_ARCH,
-        "input_size":        INPUT_SIZE,
+        "model_arch":        model.arch,
+        "ensemble_size":     len(model.members),
+        "input_size":        model.input_size,       # (width, height)
         "preprocess":        PREPROCESS_MODE,
-        "num_classes":       len(DISEASE_CLASSES),
-        "classes":           DISEASE_CLASSES,
+        "tta":               TTA_ENABLED,
+        "temperature":       model.temperature,
+        "num_classes":       len(model.class_names),
+        "classes":           model.class_names,
+        # Data and login
+        "database_ready":    getattr(request.app.state, "database_ready", False),
+        "farmer_auth_configured": auth_service.farmer_pool() is not None,
+        "staff_auth_configured":  auth_service.admin_pool() is not None,
         # Chat
         "chat_configured":   chat_service.is_chat_configured(),
         "chat_provider":     chat_service.get_provider(),

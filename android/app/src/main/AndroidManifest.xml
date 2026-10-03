@@ -1,27 +1,29 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Login tokens are encrypted with a device-bound Android Keystore key and can't be
+         restored on another phone, so app data is not backed up to the cloud. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/AppTheme">
-
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
-
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
 
         <provider
@@ -29,34 +31,17 @@
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"></meta-data>
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
     </application>
 
-    <!-- Permissions -->
-
+    <!-- Permissions. Plugins add their own: RECORD_AUDIO (speech-to-text) and
+         ACCESS_NETWORK_STATE (offline banner). Photos use the system camera app and
+         Android's photo picker, which need no CAMERA or storage permission. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Required for navigator.mediaDevices.getUserMedia() in the WebView
-         (Voice Chat's microphone). Without this, mediaDevices is undefined
-         even on a secure origin — this is a separate, manifest-level gate
-         from the JS secure-context requirement. Capacitor's bridge already
-         handles the runtime permission prompt/grant once this is declared. -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Chromium's audio capture stack inside the WebView explicitly requires
-         this alongside RECORD_AUDIO — confirmed via Logcat tag "cr_media":
-         "Requires MODIFY_AUDIO_SETTINGS and RECORD_AUDIO. No audio device
-         will be available for recording." It's a "normal" permission (no
-         runtime prompt) but still must be declared here or it's silently
-         absent, which is what was actually causing getUserMedia's
-         NotAllowedError this whole time — not a permission cache issue. -->
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-
-    <!-- Not strictly required today (camera capture uses a system intent via
-         <input capture>, not getUserMedia), but harmless to have ready in
-         case that changes later. -->
-    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Don't hide the app on Play from devices without a camera or microphone:
+         typing questions and choosing existing photos still work there. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 </manifest>

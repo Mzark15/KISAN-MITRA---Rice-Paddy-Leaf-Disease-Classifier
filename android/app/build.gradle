@@ -1,25 +1,59 @@
 apply plugin: 'com.android.application'
 
+// Version comes from package.json ("1.2.3" → versionName 1.2.3, versionCode 10203),
+// so bumping the version there is all a Play Store update needs.
+def appPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
+def (vMajor, vMinor, vPatch) = appPackage.version.tokenize('.').collect { it.toInteger() }
+
+// Release signing key (upload key for Play App Signing). Kept out of git:
+// android/keystore.properties (storeFile, storePassword, keyAlias, keyPassword) and the .jks file.
+def keystoreProps = new Properties()
+def keystoreFile = rootProject.file('keystore.properties')
+if (keystoreFile.exists()) {
+    keystoreFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
-    namespace "com.mrfounders.kisanmitra"
-    compileSdk rootProject.ext.compileSdkVersion
+    namespace = "com.mrfounders.kisanmitra"
+    compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.mrfounders.kisanmitra"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode vMajor * 10000 + vMinor * 100 + vPatch
+        versionName appPackage.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    buildTypes {
+
+    signingConfigs {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystoreFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Installs next to the Play version, so a test build never replaces it.
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (keystoreFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

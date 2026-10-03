@@ -9,12 +9,15 @@ To switch LLM provider: set LLM_PROVIDER env var (sambanova | gemini | openai | 
 and the matching API key.
 """
 
+import asyncio
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 import chat_service
 import database
+from auth_service import Farmer
+from ratelimit import limit_farmer
 from schemas import ChatRequest, ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -22,7 +25,11 @@ router = APIRouter()
 
 
 @router.post("/chat", response_model=ChatResponse, summary="Ask the AI crop advisor")
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+async def chat(
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    farmer: Farmer = Depends(limit_farmer("chat")),
+):
     """
     Send a text message and get a reply in the same language (hi / mr / en).
 
@@ -49,7 +56,9 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         )
 
     try:
-        reply = chat_service.generate_reply(
+        # Worker thread: the SDK calls block, and would otherwise stall every other request.
+        reply = await asyncio.to_thread(
+            chat_service.generate_reply,
             message=request.message.strip(),
             language=request.language,
             diagnosis_context=request.diagnosis_context,

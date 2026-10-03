@@ -3,7 +3,7 @@ main.py — Kisan Mitra FastAPI application
 
 Startup order:
   1. Load diseases.json into chat_service memory (for LLM grounding)
-  2. Initialise SQLite database (creates tables if missing)
+  2. Check the DynamoDB tables exist (created by infra/ Terraform)
   3. Load MLX STT model if VOICE_STT_PROVIDER=mlx (async thread)
   4. Mount routers and static frontend
 
@@ -38,7 +38,7 @@ except ImportError:
 import chat_service
 import database
 import voice_service
-from routers import chat, dashboard, diagnose, diseases, health, voice
+from routers import auth, chat, dashboard, diagnose, diseases, health, voice
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +47,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_DIR      = Path(__file__).resolve().parent
-FRONTEND_DIR  = (BASE_DIR.parent / "frontend").resolve()
+FRONTEND_DIR  = (BASE_DIR.parent / "frontend").resolve()   # staff dashboard + legal pages
+WEB_DIST      = (BASE_DIR.parent / "web" / "dist").resolve()  # farmer app (npm run build)
 
 
 @asynccontextmanager
@@ -58,9 +59,8 @@ async def lifespan(app: FastAPI):
     # 1. Load diseases.json for LLM grounding (raises on missing/corrupt file)
     chat_service.init_knowledge_base()
 
-    # 2. Init SQLite (creates data/ dir and tables if needed)
-    await database.init_db()
-    logger.info("Database ready: %s", database.DB_PATH)
+    # 2. Check DynamoDB (logs a clear error instead of crashing if AWS is unreachable)
+    app.state.database_ready = await database.init_db()
 
     # 3. Load MLX STT model (only on Apple Silicon; no-op otherwise)
     await voice_service.init_stt()
@@ -78,17 +78,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow all origins in development. In production, restrict to your domain.
+# Auth uses bearer tokens (no cookies), so credentials are never needed cross-origin.
+# The Android app's origin is https://localhost. Restrict with CORS_ORIGINS in production,
+# e.g. "https://localhost,https://kisanmitra.example".
+CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- API routers ---
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(diseases.router)
 app.include_router(diagnose.router)
 app.include_router(chat.router)
@@ -96,13 +100,29 @@ app.include_router(voice.router)
 app.include_router(dashboard.router)
 
 
-# --- Serve frontend ---
+# --- Serve the farmer app (React build in web/dist) ---
 @app.get("/", include_in_schema=False)
-def serve_frontend():
-    index = FRONTEND_DIR / "index.html"
+def serve_app():
+    index = WEB_DIST / "index.html"
     if not index.is_file():
-        raise HTTPException(status_code=404, detail="Frontend not built. Run from project root.")
-    return FileResponse(index)
+        raise HTTPException(status_code=404, detail="App not built. Run `npm install && npm run build`.")
+    return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/logo.svg", include_in_schema=False)
+def serve_logo():
+    return FileResponse(FRONTEND_DIR / "logo.svg")
+
+
+# --- Public legal pages (linked from the app and the Play Store listing) ---
+@app.get("/privacy", include_in_schema=False)
+def serve_privacy():
+    return FileResponse(FRONTEND_DIR / "privacy.html")
+
+
+@app.get("/delete-account", include_in_schema=False)
+def serve_delete_account():
+    return FileResponse(FRONTEND_DIR / "delete-account.html")
 
 
 @app.get("/dashboard", include_in_schema=False)
@@ -113,10 +133,17 @@ def serve_dashboard_page():
     return FileResponse(page)
 
 
+if (WEB_DIST / "assets").is_dir():
+    # Hashed file names: safe to cache for a long time.
+    app.mount("/assets", StaticFiles(directory=str(WEB_DIST / "assets")), name="assets")
 if FRONTEND_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+    # Each worker loads its own copy of the model (~100 MB), so size WEB_CONCURRENCY to the
+    # container's memory/CPU. To handle more traffic, add containers rather than workers.
+    workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, workers=workers, reload=False,
+                proxy_headers=True, forwarded_allow_ips="*", timeout_graceful_shutdown=25)

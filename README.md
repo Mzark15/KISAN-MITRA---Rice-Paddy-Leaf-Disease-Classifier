@@ -1,217 +1,198 @@
-# Kisan Mitra — AI Crop Advisor (Paddy)
+# Kisan Mitra — AI Crop Advisor for Paddy Farmers
 
-A multi-phase AI-powered application for paddy farmers, starting with disease detection, then adding chat, voice, and dashboard features.
+A farmer photographs a rice leaf and gets the disease name, how sure the model is, and treatment
+advice. They can then ask follow-up questions by text or voice in Hindi, Marathi or English.
+It ships as a web app and an Android app (Capacitor) backed by one FastAPI server.
 
-## Features
+## How it works
 
-### Phase 1 – Disease Detection
-- Upload or capture a leaf photo
-- Run inference using a TFLite model (MobileNetV2 trained on the Kaggle Paddy Doctor competition dataset)
-- Get a diagnosis with confidence score
-- View cause, severity, and organic/chemical treatment options
-- No external cloud required for inference (works offline if model is present)
-- 10-class classification (Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight, Blast, Brown Spot, Dead Heart, Downy Mildew, Hispa, Normal, Tungro)
+```
+ phone photo ──▶ Crop gate ──▶ Disease classifier ──▶ Treatment (diseases.json) ──▶ Chat / Voice
+                  │                  │
+                  │ "is this a       │ 10 classes, 97.6% accuracy on held-out
+                  │  rice leaf?"     │ Paddy Doctor photos (EfficientNetV2-S)
+                  ▼
+            not a leaf → HTTP 422 "This doesn't look like a rice leaf. Take a close,
+                         well-lit photo of a single rice leaf and try again."
+```
 
-### Phase 2 – Chat
-- Text chat in Hindi, Marathi, English
-- LLM grounded in disease knowledge base (no hallucinations)
-- Integrates SambaNova (default), OpenAI, Anthropic, or Gemini
-- Optional diagnosis context (chat about a recent diagnosis)
+1. **Crop gate** (`backend/models/crop_gate.tflite`). A small MobileNetV2 + logistic head that answers
+   "is this a rice leaf photo?". The disease model only knows 10 rice classes, so without the gate a
+   photo of a shoe still gets labelled "Brown Spot". Photos below the gate threshold are rejected and
+   nothing is diagnosed or stored.
+2. **Disease classifier** (`backend/models/paddy_disease_model_fold0.tflite`). EfficientNetV2-S trained on
+   the Kaggle *Paddy Doctor* dataset. Each prediction averages the image and its horizontal flip, then applies
+   temperature scaling so the confidence is calibrated.
+3. **Confidence check.** Below the recommended threshold the result is still shown but marked
+   `safe_to_act: false` with a warning; the app must keep that warning visible. A low-confidence "Normal"
+   never tells a farmer the crop is healthy.
+4. **Treatment.** Cause, severity, organic and chemical treatment come from the vetted knowledge base
+   `backend/diseases.json`, not from the model or an LLM.
+5. **Chat and voice.** An LLM answers questions grounded in that same knowledge base, optionally about
+   the diagnosis just made. Voice uses speech-to-text and text-to-speech around the same chat.
 
-### Phase 3 – Voice
-- Speech-to-text (STT): local MLX (Apple Silicon) or Bhashini (cloud)
-- Text-to-speech (TTS): Bhashini or browser fallback
-- Voice chat flow: speak, get transcript, get AI reply, hear it back
+The 10 classes: Bacterial Leaf Blight, Bacterial Leaf Streak, Bacterial Panicle Blight, Blast, Brown Spot,
+Dead Heart, Downy Mildew, Hispa, Normal, Tungro.
 
-### Phase 4 – Dashboard
-- Field team dashboard with login
-- Summary stats: total diagnoses, chats, voice sessions
-- Charts: top diseases, last 7 days trend
-- Recent diagnoses table with village and feedback
-- Feedback: farmers can mark diagnoses helpful/not helpful
-- Async SQLite persistence
+### How good is it?
 
-## Quickstart (Local)
+| Check | Result |
+|---|---|
+| Disease model, held-out Paddy Doctor photos | 97.6% accuracy (`oof_accuracy` in `model_meta.json`) |
+| Crop gate, rice photos it never trained on (200) | 200/200 accepted |
+| Crop gate, other plants/weeds never trained on (960, Kaggle *Plant Seedlings*) | 959/960 rejected |
+| Crop gate, blank / noise / flat-colour / screenshot images | all rejected |
 
-### 1. Prerequisites
-- Python 3.10+
-- For MLX STT (optional, Apple Silicon only):
-  - macOS 13+
-  - ffmpeg (`brew install ffmpeg`)
+These are photos from datasets. Real farmer photos (bad light, blur, hands, soil) will score lower, so
+test on 100–200 labelled field photos before trusting it. The gate is tested against other plants but not
+yet against hands, soil or rice grain.
 
-### 2. Install
+## Quickstart: run it and test on your phone (no AWS needed)
+
+Requirements: Python 3.10+, and for the Android app Node.js 18+, JDK 17–21 and the Android SDK
+(Android Studio installs both).
+
 ```bash
-git clone https://github.com/Mzark15/KISAN-MITRA---Rice-Paddy-Leaf-Disease-Classifier
-cd krishi
-python -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
-# Optional: MLX STT for Apple Silicon
-pip install -r requirements-mlx.txt
+npm install                        # only needed to build the app
+
+py kisan.py all                    # build the debug APK, then start the backend
 ```
 
-### 3. Configure
-Copy `.env.example` to `.env` and set the variables you need:
+`kisan.py` is a dev CLI (standard library only; on Windows `kisan` also works):
+
+| Command | What it does |
+|---|---|
+| `py kisan.py serve` | Start the backend in guest mode (no login), reachable from your phone at `http://<laptop-ip>:8000` |
+| `py kisan.py apk` | Point the app at this laptop's IP and build `dist/KisanMitra-test.apk` |
+| `py kisan.py all` | `apk`, then `serve` |
+| `py kisan.py check` | Is the backend up, are all four model files present, is `model_mode` `tflite`? |
+| `py kisan.py diagnose <photo or folder>` | Send photos through the real gate + classifier; prints `[CLASSIFIED]` or `[REJECTED]` |
+| `py kisan.py ip` / `firewall` | Show the laptop's LAN IP / print the Windows firewall command |
+
+To use the app on a phone:
+1. Run `py kisan.py firewall` and run the command it prints in an **Administrator** PowerShell (once).
+   Windows blocks incoming connections on "Public" Wi-Fi.
+2. Keep the laptop and the phone on the **same Wi-Fi**. Check `http://<laptop-ip>:8000/healthz` in the phone's browser.
+3. Copy `dist/KisanMitra-test.apk` to the phone and install it (allow "install unknown apps").
+4. Keep the terminal running `serve`. Photos of rice leaves are classified; anything else is rejected.
+
+The IP is baked into the APK, so run `py kisan.py apk` again whenever the laptop's IP changes.
+In guest mode the server still tries to log to DynamoDB; those errors in the log are harmless, and
+`/diagnose` returns its result anyway. Chat needs an LLM key in `.env` (see Configuration).
+
+Quick model check without a phone:
 ```bash
-cp .env.example .env
+py kisan.py diagnose data/train_images/blast       # should classify as Blast
+py kisan.py diagnose path/to/random/photos         # should be rejected
 ```
 
-Minimal config for Phase 1 (no API keys needed):
-```env
-MODEL_PATH=backend/models/paddy_disease_model.tflite
-MODEL_INPUT_SIZE=224
-MODEL_PREPROCESS=none
-DB_PATH=data/kisan_mitra.db
-```
-
-Add LLM provider for chat (choose one):
-```env
-LLM_PROVIDER=sambanova
-SAMBANOVA_API_KEY=sk-...
-# OR
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-# OR
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=...
-# OR
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-...
-```
-
-Add Bhashini for voice (optional):
-```env
-VOICE_STT_PROVIDER=auto  # mlx first, then bhashini
-BHASHINI_USER_ID=your-user-id
-BHASHINI_API_KEY=your-api-key
-BHASHINI_PIPELINE_ID=your-pipeline-id
-```
-
-### 4. Add Model
-Download or place your TFLite model at `backend/models/paddy_disease_model.tflite`.
-If no model is present, the app falls back to a random classification for testing.
-
-### 5. Run
+### Other ways to run the backend
 ```bash
-# Option A: Use start script
-./start.sh
-
-# Option B: Run manually
-cd backend
-python main.py
+./start.sh                                   # installs deps and starts the server
+cd backend && uvicorn main:app --port 8000   # manual
+docker-compose up --build -d                 # Docker; mounts ./backend/models read-only
 ```
+The web app is served at `http://localhost:8000` once built (`npm run build` creates `web/dist`).
+API docs are at `/docs`.
 
-Open http://localhost:8000 in your browser.
+## Configuration
 
-## Docker
+Copy `.env.example` to `.env`. Nothing is required to run the models locally. Common settings:
 
-### Build & Run
-```bash
-docker-compose up --build -d
-```
+| Variable | Default | Purpose |
+|---|---|---|
+| `AUTH_DISABLED` | off | `1` = guest mode, no login (the CLI sets this for you; build the app with `VITE_AUTH_DISABLED=1`) |
+| `MODEL_PATH` | `backend/models` | Folder with the models (or one `.tflite`) |
+| `CROP_GATE` | `1` | `0` turns the gate off (every image is diagnosed) |
+| `CROP_GATE_THRESHOLD` | from `crop_gate.json` | Override the gate's cut-off |
+| `CONFIDENCE_THRESHOLD` | from `model_meta.json` | Below this a diagnosis is marked uncertain |
+| `MODEL_TTA` | `1` | Average over the image and its mirror image |
+| `MAX_IMAGE_SIZE_MB` | `10` | Upload limit |
+| `LLM_PROVIDER` | `sambanova` | Chat model: `sambanova`, `gemini`, `openai`, `anthropic`, `huggingface` |
+| `LLM_FALLBACK_PROVIDERS` | | Providers to try, in order, if the first fails |
+| `<PROVIDER>_API_KEY` | | `SAMBANOVA_`, `GEMINI_`, `OPENAI_`, `ANTHROPIC_`, `HUGGINGFACE_` |
+| `VOICE_STT_PROVIDER` | `mlx` | Speech-to-text: `mlx` (Apple Silicon, local), `bhashini` (cloud), `auto` |
+| `BHASHINI_USER_ID`, `BHASHINI_API_KEY`, `BHASHINI_PIPELINE_ID` | | Bhashini voice (also TTS) |
+| `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_DAY` | `10` / `200` | Per-farmer limits |
+| `CORS_ORIGINS` | `*` | Restrict in production, e.g. `https://localhost` |
+| `AWS_*`, `COGNITO_*`, `DYNAMODB_TABLE_PREFIX` | | Real login (SMS OTP) and data storage; created by `infra/` |
 
-The app is served on http://localhost:8000.
-Model directory is mounted from `./backend/models`, database from `./data`.
+See `backend/models/README.md` for the model-related settings in detail.
 
-## Project Structure
-```
-krishi/
-├── backend/
-│   ├── main.py                 # FastAPI entrypoint
-│   ├── inference.py            # TFLite model wrapper
-│   ├── chat_service.py         # LLM chat with grounding
-│   ├── voice_service.py        # STT/TTS router
-│   ├── bhashini_service.py     # Bhashini ULCA API client
-│   ├── mlx_stt_service.py      # Local MLX Qwen2-Audio STT
-│   ├── database.py             # Async SQLite persistence
-│   ├── schemas.py              # Pydantic models
-│   ├── diseases.json           # Disease knowledge base
-│   ├── routers/
-│   │   ├── health.py           # Health and model info
-│   │   ├── diseases.py         # Get static disease info
-│   │   ├── diagnose.py         # Upload image → diagnosis
-│   │   ├── chat.py             # Text chat endpoint
-│   │   ├── voice.py            # Voice endpoints
-│   │   └── dashboard.py        # Stats, recent, feedback
-│   └── models/                 # TFLite model directory
-├── frontend/
-│   ├── index.html              # Farmer app
-│   └── dashboard.html          # Field team dashboard
-├── scripts/
-│   └── convert_to_tflite.py    # Convert Keras model to TFLite
-├── requirements.txt
-├── requirements-mlx.txt        # Optional MLX dependencies
-├── .env.example
-├── .gitignore
-├── Dockerfile
-├── docker-compose.yml
-└── start.sh
-```
+## API
 
-## API Endpoints
+Interactive docs at `/docs`. Main endpoints:
 
 | Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Serve app frontend |
-| `GET` | `/health` | Health check & model info |
-| `GET` | `/diseases` | Get full disease knowledge base |
-| `POST` | `/diagnose` | Upload image → diagnosis |
-| `POST` | `/diagnose/feedback` | Submit feedback on diagnosis |
-| `POST` | `/chat` | Text chat with optional diagnosis context |
-| `GET` | `/voice/status` | Check voice STT/TTS availability |
-| `POST` | `/voice/stt` | Audio → text |
-| `POST` | `/voice/tts` | Text → audio |
-| `POST` | `/voice/chat` | Voice chat end‑to‑end |
-| `GET` | `/dashboard` | Serve dashboard frontend |
-| `GET` | `/dashboard/stats` | Get dashboard statistics |
-| `GET` | `/dashboard/recent` | Get recent diagnoses |
+|---|---|---|
+| `POST` | `/diagnose` | Photo → gate → disease, confidence, treatment. `422` if it isn't a rice leaf |
+| `POST` | `/diagnose/feedback` | Mark a diagnosis helpful / not helpful |
+| `GET` | `/diseases` | The full treatment knowledge base |
+| `POST` | `/chat` | Text chat, optionally with a diagnosis as context |
+| `GET` | `/voice/status` | Which speech providers are available |
+| `POST` | `/voice/stt`, `/voice/tts`, `/voice/chat` | Speech → text, text → speech, whole voice round trip |
+| `POST` | `/auth/otp/start`, `/auth/otp/verify`, `/auth/refresh`, `/auth/logout` | Farmer login by SMS code |
+| `GET`/`PATCH`/`DELETE` | `/auth/me` | Profile; delete my account and data |
+| `POST` | `/admin/auth/login`, `/admin/auth/challenge`, `/admin/auth/refresh`, `/admin/auth/logout` | Staff login (password + MFA) |
+| `GET` | `/dashboard`, `/dashboard/stats`, `/dashboard/recent` | Field-team dashboard (staff only) |
+| `GET` | `/health`, `/healthz` | Full status / cheap liveness check |
 
-## Environment Variables
+## Project structure
 
-| Name | Default | Description |
-|------|---------|-------------|
-| `PORT` | `8000` | Server port |
-| `MODEL_PATH` | `backend/models/paddy_disease_model.tflite` | Path to TFLite model file |
-| `MODEL_INPUT_SIZE` | `224` | Model input resolution (px) |
-| `MODEL_PREPROCESS` | `none` | Preprocessing mode: `none` (preprocessing baked into the model graph — correct for the training notebook), `mobilenet` (scale to [-1,1]), `resnet` (ImageNet mean subtraction, BGR), or `scale` |
-| `DB_PATH` | `data/kisan_mitra.db` | SQLite database path |
-| `LLM_PROVIDER` | `sambanova` | LLM provider: `sambanova`, `openai`, `gemini`, `anthropic` |
-| `SAMBANOVA_API_KEY` | | SambaNova API key |
-| `SAMBANOVA_BASE_URL` | `https://api.sambanova.ai/v1` | SambaNova base URL |
-| `SAMBANOVA_MODEL` | `Meta-Llama-3.3-70B-Instruct` | SambaNova model |
-| `OPENAI_API_KEY` | | OpenAI API key |
-| `GEMINI_API_KEY` | | Google AI Studio API key |
-| `ANTHROPIC_API_KEY` | | Anthropic API key |
-| `VOICE_STT_PROVIDER` | `mlx` | STT provider: `mlx`, `bhashini`, `auto` |
-| `MLX_STT_ENABLED` | `1` | Enable/disable MLX STT |
-| `MLX_STT_MODEL` | `mlx-community/Qwen2-Audio-7B-Instruct-4bit` | MLX model ID |
-| `BHASHINI_USER_ID` | | Bhashini user ID |
-| `BHASHINI_API_KEY` | | Bhashini API key |
-| `BHASHINI_PIPELINE_ID` | | Bhashini pipeline ID (optional) |
-| `DASHBOARD_PASSWORD` | `kisan123` | Dashboard login password |
-
-## Model Integration
-
-The app expects a TFLite model trained on the Kaggle Paddy Doctor competition dataset (10 classes, alphabetical order) — see `Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb` and `backend/models/README.md`.
-
-Use `scripts/convert_to_tflite.py` to convert a Keras model to TFLite:
-```bash
-cd scripts
-python convert_to_tflite.py --model ../my_model.keras --output ../backend/models/paddy_disease_model.tflite
+```
+backend/
+  main.py, schemas.py
+  inference.py             TFLite disease model + crop gate
+  chat_service.py          LLM chat grounded in diseases.json (multi-provider with fallback)
+  voice_service.py, bhashini_service.py, mlx_stt_service.py
+  auth_service.py          Cognito login / token checks
+  database.py              DynamoDB (users, diagnoses, stats, rate limits)
+  ratelimit.py             per-farmer limits
+  diseases.json            vetted treatment knowledge base
+  routers/                 health, diseases, diagnose, chat, voice, auth, dashboard
+  models/                  crop_gate.tflite/.json, paddy_disease_model_fold0.tflite, model_meta.json
+web/                       the farmer app (React + Vite, i18n: Hindi / Marathi / English)
+frontend/                  staff dashboard and legal pages
+android/, capacitor.config.ts   Android wrapper around web/
+infra/                     Terraform for AWS (ECS Fargate, DynamoDB, Cognito, WAF, ...)
+scripts/                   training / evaluation helpers (below)
+kisan.py                   dev CLI
 ```
 
-## Languages Supported
+## Training the models
 
-- **Diagnosis/disease reference**: English (UI in Hindi/Marathi/English)
-- **Chat/voice**: Hindi, Marathi, English
-- **Bhashini TTS/STT**: + Tamil, Telugu, Kannada, Punjabi, Gujarati, Bengali, Malayalam
+Both models are trained in Google Colab on a GPU and exported to TFLite; copy the output into `backend/models/`.
+
+| Notebook | Trains |
+|---|---|
+| `Kisan_Mitra_Crop_and_NonCrop_Training.ipynb` | **Crop gate** (rice vs everything else) and optionally a single disease model. Set `TRAIN_DISEASE`, `TRAIN_GATE` at the top. Needs a Kaggle token. |
+| `Kisan_Mitra_Rice_Disease_Classifier_v3.ipynb` | Best disease model: 5-fold EfficientNetV2-S ensemble, pseudo-labelling, calibrated confidence threshold |
+| `Kisan_Mitra_Rice_Disease_Classifier_v2.ipynb` | Original MobileNetV2 model (kept for reference) |
+
+The gate is trained on rice photos (positives) against textures, objects, animals and other crops' leaves
+(negatives), plus any photos of your own in a Drive folder. Add the wrong photos farmers actually take.
+
+Scripts: `train_crop_gate.py` (train the gate locally), `download_negatives.py` (fetch non-rice images),
+`eval_classifier.py` (measure the gate + classifier on a folder), `convert_to_tflite.py` (Keras → TFLite).
+
+## Deploying
+
+- **AWS (production):** see `DEPLOY.md` (Terraform in `infra/`, GitHub Actions in `.github/workflows/`).
+- **Android release build and Play Store:** see `MOBILE.md`. Release builds require an HTTPS backend.
 
 ## Troubleshooting
 
-- **Model not loaded**: Check `MODEL_PATH` and ensure the file exists. If not, the app uses random predictions for testing.
-- **MLX STT not working**: Ensure you’re on Apple Silicon, installed `requirements-mlx.txt`, installed ffmpeg, and `MLX_STT_ENABLED=1`.
-- **CORS**: The app allows all origins in dev; adjust middleware in `main.py` for production.
-- **Database**: The app creates the DB file and tables automatically if they don’t exist.
+- **Every photo gets a disease:** the gate files are missing. `py kisan.py check` shows which; both
+  `crop_gate.tflite` and `crop_gate.json` must be in `backend/models/`. The server log says "Crop gate inactive".
+- **`model_mode` is `random`:** no model was found at `MODEL_PATH`, so predictions are random. Fix the path.
+- **Phone can't reach the laptop:** same Wi-Fi? Firewall rule added? Does `http://<laptop-ip>:8000/healthz` open on the phone?
+  Did the laptop's IP change (rebuild with `py kisan.py apk`)?
+- **A real rice leaf is rejected:** take a closer, well-lit photo that fills the frame. To loosen the gate set
+  `CROP_GATE_THRESHOLD` lower; to retrain it, add such photos and use the notebook above.
+- **DynamoDB / AWS errors in the log while testing locally:** expected without AWS. Diagnosis still works.
+- **Notebook export fails with `ERROR_NEEDS_FLEX_OPS`:** the notebook was exporting under mixed precision. Use the
+  current notebook, or restart the Colab runtime before running it.
 
 ## License
 

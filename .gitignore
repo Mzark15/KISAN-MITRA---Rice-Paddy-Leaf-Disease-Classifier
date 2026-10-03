@@ -105,3 +105,7 @@ Thumbs.db
 *.zip
 # Test APK built by `py kisan.py apk` (dist/ is ignored above) and dataset downloads
 kagglehub/
+
+# Terraform plan files can contain secret values
+infra/tfplan
+*.tfplan

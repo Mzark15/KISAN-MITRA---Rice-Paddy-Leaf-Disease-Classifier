@@ -59,7 +59,8 @@ npm install                        # only needed to build the app
 py kisan.py all                    # build the debug APK, then start the backend
 ```
 
-`kisan.py` is a dev CLI (standard library only; on Windows `kisan` also works):
+`kisan.py` is a dev CLI (standard library only). Run it from the project folder as `py kisan.py <command>`.
+On Windows there is also a shortcut, `kisan <command>` (it is a `.cmd` file, so do **not** put `py` in front of it):
 
 | Command | What it does |
 |---|---|

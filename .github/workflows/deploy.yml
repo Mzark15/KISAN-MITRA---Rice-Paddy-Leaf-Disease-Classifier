@@ -1,0 +1,76 @@
+name: Build and deploy API
+
+# PRs run checks only. A push to the deploy branch builds the image, pushes it to ECR
+# and rolls the ECS service (circuit breaker rolls back automatically if health checks fail).
+on:
+  pull_request:
+  push:
+    branches: [phase-1-mvp]
+
+permissions:
+  id-token: write # OIDC to AWS
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'prod' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt pytest
+      - run: python -m compileall -q backend
+      - run: pytest -q backend
+        continue-on-error: false
+        if: hashFiles('backend/tests/**') != ''
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        id: image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/kisan-mitra-${{ env.ENVIRONMENT }}:${{ github.sha }}
+        run: |
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch current task definition
+        run: |
+          aws ecs describe-task-definition --task-definition kisan-mitra-${ENVIRONMENT} \
+            --query taskDefinition > task-definition.json
+
+      - id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: api
+          image: ${{ steps.image.outputs.image }}
+
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: kisan-mitra-${{ env.ENVIRONMENT }}
+          service: api
+          wait-for-service-stability: true

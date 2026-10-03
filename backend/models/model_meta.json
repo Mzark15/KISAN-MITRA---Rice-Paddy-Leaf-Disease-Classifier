@@ -1,0 +1,28 @@
+{
+  "models": [
+    "paddy_disease_model_fold0.tflite"
+  ],
+  "class_names": [
+    "Bacterial Leaf Blight",
+    "Bacterial Leaf Streak",
+    "Bacterial Panicle Blight",
+    "Blast",
+    "Brown Spot",
+    "Dead Heart",
+    "Downy Mildew",
+    "Hispa",
+    "Normal",
+    "Tungro"
+  ],
+  "backbone": "efficientnetv2s",
+  "input_height": 384,
+  "input_width": 288,
+  "preprocess": "none",
+  "tta": "hflip",
+  "temperature": 0.6708,
+  "recommended_threshold": 30.0,
+  "oof_accuracy": 0.976,
+  "quantize": "dynamic",
+  "pseudo_label": false,
+  "trained_on": "2026-10-01"
+}

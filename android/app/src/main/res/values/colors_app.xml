@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window colour behind the WebView. On older Android WebViews (Chromium < 140)
+         Capacitor pads the page instead of drawing edge-to-edge, so the status and
+         navigation bar strips show this colour (with light icons, see web/src/lib/native.ts). -->
+    <color name="header_green">#1b4332</color>
+</resources>

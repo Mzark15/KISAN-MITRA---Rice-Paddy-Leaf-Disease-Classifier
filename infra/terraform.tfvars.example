@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+admin_email = "you@example.com"
+
+# environment         = "dev"
+# deletion_protection = false   # set true for prod
+# sms_monthly_spend_limit_usd = 1

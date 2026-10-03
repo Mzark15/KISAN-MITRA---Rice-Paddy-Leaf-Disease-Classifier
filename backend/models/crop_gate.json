@@ -1,0 +1,7 @@
+{
+  "threshold": 0.7837,
+  "val_auc": 1.0,
+  "rice_recall": 1.0,
+  "non_rice_pass_rate": 0.0,
+  "input_size": 224
+}

@@ -1,0 +1,82 @@
+{
+  "Bacterial Leaf Blight": {
+    "cause": "Bacterial infection (Xanthomonas oryzae pv. oryzae) spread through water, rain splash, and infected seeds.",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Remove and destroy infected debris. Avoid flood irrigation. Use disease-free seeds. Apply neem-based solutions.",
+    "chemical_treatment": "Spray Copper Oxychloride (3g/L) or Streptomycin Sulphate (500ppm) at early infection. Repeat after 10 days.",
+    "precautions": "Do not apply nitrogen fertilizer during outbreak. Use resistant varieties like Pusa Basmati 1.",
+    "refer_to_kvk": false
+  },
+  "Bacterial Leaf Streak": {
+    "cause": "Xanthomonas oryzae pv. oryzicola; favored by humid weather and water-splashing.",
+    "severity_levels": ["Low", "Medium"],
+    "organic_treatment": "Use disease-free seeds. Avoid excessive nitrogen. Remove and burn infected material.",
+    "chemical_treatment": "Copper Hydroxide (2g/L). Streptomycin (100ppm) as seed treatment.",
+    "precautions": "Avoid transplanting from infected nurseries.",
+    "refer_to_kvk": false
+  },
+  "Bacterial Panicle Blight": {
+    "cause": "Burkholderia glumae; thrives in hot and humid weather during flowering.",
+    "severity_levels": ["Medium", "High"],
+    "organic_treatment": "Use certified seeds. Reduce plant density for better air circulation. Drain standing water.",
+    "chemical_treatment": "Seed treatment with Streptomycin Sulphate. Spray Kasugamycin (1.5ml/L) at early boot stage.",
+    "precautions": "Rog infected panicles before seed shed. Consult KVK for severe outbreaks.",
+    "refer_to_kvk": true
+  },
+  "Blast": {
+    "cause": "Fungal infection by Magnaporthe oryzae; favored by cool nights, high humidity, and excess nitrogen.",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Use blast-resistant varieties. Avoid excessive nitrogen. Maintain proper spacing. Silicon-based amendments improve resistance.",
+    "chemical_treatment": "Spray Tricyclazole (0.6g/L) or Isoprothiolane (1.5ml/L) at first sign. For neck blast, spray at booting stage. Repeat after 14 days.",
+    "precautions": "Do not apply nitrogen fertilizer during blast period. Drain water at night for 3–4 days.",
+    "refer_to_kvk": false
+  },
+  "Brown Spot": {
+    "cause": "Fungal infection by Bipolaris oryzae; worsened by potassium deficiency and drought stress.",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Apply potassium-rich compost. Maintain proper soil moisture. Use disease-free seeds treated with hot water (52°C for 10 min).",
+    "chemical_treatment": "Spray Mancozeb (2.5g/L) or Propiconazole (1ml/L) at early infection. Repeat after 14 days.",
+    "precautions": "Test soil for potassium deficiency. Apply MOP (Muriate of Potash) as corrective measure.",
+    "refer_to_kvk": false
+  },
+  "Dead Heart": {
+    "cause": "Insect pest — stem borer larvae (e.g. Scirpophaga incertulas, yellow stem borer) tunnel into the stem during the vegetative stage, killing the central shoot.",
+    "severity_levels": ["Low", "Medium", "High"],
+    "organic_treatment": "Collect and destroy egg masses and affected tillers. Light traps for adult moths. Release Trichogramma egg parasitoids. Neem oil (3ml/L) at egg hatching.",
+    "chemical_treatment": "Carbofuran 3G (33kg/ha) at transplanting/early tillering. Spray Chlorantraniliprole (0.4ml/L) or Cartap Hydrochloride (2g/L) for active infestation.",
+    "precautions": "Avoid close plant spacing and excess nitrogen. Synchronised planting with neighbouring fields reduces overall pest pressure.",
+    "refer_to_kvk": false
+  },
+  "Downy Mildew": {
+    "cause": "Oomycete pathogen; favored by cool, wet, and cloudy conditions.",
+    "severity_levels": ["Low", "Medium"],
+    "organic_treatment": "Improve field drainage. Increase plant spacing. Remove infected material. Compost tea spray.",
+    "chemical_treatment": "Metalaxyl + Mancozeb (2g/L) spray. Seed treatment with Metalaxyl 35 SD (6g/kg seed).",
+    "precautions": "Avoid overhead irrigation. Ensure good airflow between rows.",
+    "refer_to_kvk": false
+  },
+  "Hispa": {
+    "cause": "Insect pest — Dicladispa armigera beetle; larvae mine leaves, adults scrape chlorophyll.",
+    "severity_levels": ["Low", "Medium"],
+    "organic_treatment": "Clip and burn affected leaves. Release parasitoids. Apply neem seed kernel extract (5% NSKE). Light traps for adults.",
+    "chemical_treatment": "Spray Chlorpyrifos (2ml/L) or Quinalphos (2ml/L). Phorate granules (10G) at 10kg/ha in soil.",
+    "precautions": "Avoid excessive nitrogen. Plant at lower densities.",
+    "refer_to_kvk": false
+  },
+  "Tungro": {
+    "cause": "Viral disease transmitted by green leafhopper; causes stunted plants with yellow-orange leaf discoloration.",
+    "severity_levels": ["Medium", "High"],
+    "organic_treatment": "Remove and destroy infected plants immediately. Control leafhopper vector with sticky yellow traps and neem spray.",
+    "chemical_treatment": "No direct cure. Control leafhopper vector: spray Imidacloprid (0.5ml/L) or Thiamethoxam (0.25g/L) at seedling and early tillering.",
+    "precautions": "Use tungro-resistant varieties (IR36, IR64). Avoid late planting. This is a serious disease — consult your KVK.",
+    "refer_to_kvk": true
+  },
+  "Normal": {
+    "cause": "N/A",
+    "severity_levels": [],
+    "organic_treatment": "Continue good agronomic practices: balanced fertilization, proper irrigation, and regular scouting.",
+    "chemical_treatment": "No treatment needed.",
+    "precautions": "Keep monitoring regularly. Preventive measures include crop rotation and certified seeds.",
+    "refer_to_kvk": false
+  }
+}

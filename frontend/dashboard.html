@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kisan Mitra — Field Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+          --green-900:#1b4332; --green-800:#204e3b; --green-700:#2d6a4f; --green-600:#379268; --green-500:#40916c;
+          --green-100:#d8f3dc; --green-50:#f1faee; --gold:#ffd166; --border:#b7e4c7; --text:#1c2321; --muted:#5c6b63;
+          --radius-sm:.5rem; --radius-md:.85rem; --radius-lg:1.25rem;
+          --shadow-sm:0 1px 3px rgba(27,67,50,.08); --shadow-md:0 6px 20px rgba(27,67,50,.10);
+          --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",Arial,sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body {
+          margin:0; font-family:var(--font); background:var(--green-50); color:var(--text);
+          background-image:
+            radial-gradient(circle at 100% 0%, rgba(64,145,108,.08), transparent 40%),
+            radial-gradient(circle at 0% 100%, rgba(255,209,102,.10), transparent 40%);
+          background-attachment: fixed;
+          -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width:960px; margin:0 auto; padding:1rem; }
+        header {
+          background:linear-gradient(135deg,var(--green-900),var(--green-700) 65%,var(--green-600));
+          color:#fff; padding:1.25rem 1rem 1.5rem; border-radius:0 0 1.5rem 1.5rem; margin-bottom:1.25rem;
+          box-shadow: var(--shadow-md);
+        }
+        .brand-row { display:flex; align-items:center; gap:.75rem; }
+        .brand-logo { width:40px; height:40px; flex-shrink:0; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+        .card { background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.15rem; margin-bottom:1.1rem; box-shadow:var(--shadow-sm); }
+        .card h3 { margin:0 0 .85rem; color:var(--green-900); font-size:1rem; }
+        .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:.85rem; margin-bottom:1.1rem; }
+        .stat { background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.1rem; text-align:center; box-shadow:var(--shadow-sm); transition:transform .15s ease; }
+        .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .stat .val { font-size:1.85rem; font-weight:800; color:var(--green-900); letter-spacing:-.02em; }
+        .stat .lbl { font-size:.8rem; color:var(--muted); margin-top:.15rem; font-weight:600; }
+        .charts { display:grid; grid-template-columns:1fr; gap:1.1rem; }
+        @media(min-width:700px){ .charts { grid-template-columns:1fr 1fr; } }
+        table { width:100%; border-collapse:collapse; font-size:.85rem; }
+        th,td { padding:.6rem .5rem; border-bottom:1px solid var(--border); text-align:left; }
+        th { background:var(--green-100); color:var(--green-900); font-weight:700; }
+        tbody tr:hover { background: var(--green-50); }
+        #loginOverlay {
+          position:fixed; inset:0;
+          background: linear-gradient(135deg, rgba(27,67,50,.85), rgba(45,106,79,.85));
+          display:flex; align-items:center; justify-content:center; z-index:100; padding:1rem;
+        }
+        #loginBox { background:#fff; padding:2rem 1.75rem; border-radius:var(--radius-lg); width:100%; max-width:340px; box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align:center; }
+        #loginBox .brand-logo { width:52px; height:52px; margin:0 auto .9rem; display:block; border-radius:16px; }
+        #loginBox h2 { margin:0 0 .3rem; color:var(--green-900); }
+        #loginBox form { text-align: left; }
+        #loginBox label { display:block; font-size:.82rem; font-weight:600; color:var(--green-900); margin-top:.6rem; }
+        #loginBox .hint { font-size:.82rem; color:var(--muted); margin:.4rem 0 0; text-align:left; }
+        #qrBox { display:flex; justify-content:center; margin:.75rem 0 .25rem; }
+        #mfaSecret { font-family:monospace; font-size:.78rem; word-break:break-all; background:var(--green-50); padding:.4rem; border-radius:6px; }
+        .header-btn { margin-left:auto; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.4);
+                      color:#fff; padding:.4rem .8rem; border-radius:.5rem; cursor:pointer; font-weight:600; }
+        #loginBox input {
+          width:100%; padding:.65rem .75rem; margin:.3rem 0 .6rem; border:1.5px solid var(--border);
+          border-radius:var(--radius-sm); font-size:.95rem; font-family:inherit;
+        }
+        #loginBox input:focus { outline:none; border-color:var(--green-500); box-shadow:0 0 0 3px rgba(64,145,108,.15); }
+        #loginBox button {
+          width:100%; padding:.75rem; background:linear-gradient(135deg,var(--green-600),var(--green-800));
+          color:#fff; border:none; border-radius:var(--radius-sm); cursor:pointer; font-size:.95rem; font-weight:700;
+          box-shadow: 0 2px 6px rgba(27,67,50,.2);
+        }
+        .hidden { display:none !important; }
+        a { color:var(--green-700); font-weight:600; text-decoration:none; }
+        a:hover { text-decoration: underline; }
+        footer { text-align:center; padding:1.5rem 1rem 2rem; font-size:.78rem; color:var(--muted); }
+    </style>
+</head>
+<body>
+    <div id="loginOverlay">
+        <div id="loginBox">
+            <img class="brand-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+            <h2>Field Team Login</h2>
+            <p style="font-size:.85rem;color:var(--muted);margin:0 0 .5rem">Kisan Mitra staff dashboard</p>
+
+            <form id="passwordStep">
+                <label for="emailInput">Email</label>
+                <input type="email" id="emailInput" autocomplete="username" required autofocus>
+                <label for="passwordInput">Password</label>
+                <input type="password" id="passwordInput" autocomplete="current-password" required>
+                <button type="submit">Log in</button>
+            </form>
+
+            <form id="newPasswordStep" class="hidden">
+                <p class="hint">First login: choose your own password (at least 12 characters, with upper-case, lower-case and a number).</p>
+                <label for="newPasswordInput">New password</label>
+                <input type="password" id="newPasswordInput" autocomplete="new-password" minlength="12" required>
+                <button type="submit">Set password</button>
+            </form>
+
+            <form id="mfaSetupStep" class="hidden">
+                <p class="hint">Two-step verification is required. Scan this with Google Authenticator, Microsoft Authenticator or similar, then enter the 6-digit code.</p>
+                <div id="qrBox"></div>
+                <p class="hint">Can't scan? Enter this key:</p>
+                <div id="mfaSecret"></div>
+                <label for="mfaSetupCode">6-digit code</label>
+                <input type="text" id="mfaSetupCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+                <button type="submit">Verify</button>
+            </form>
+
+            <form id="mfaStep" class="hidden">
+                <p class="hint">Enter the 6-digit code from your authenticator app.</p>
+                <label for="mfaCode">6-digit code</label>
+                <input type="text" id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+                <button type="submit">Verify</button>
+            </form>
+
+            <p id="loginError" class="hidden" style="color:#b00020;font-size:.85rem;margin:.6rem 0 0"></p>
+        </div>
+    </div>
+
+    <div id="dashboard" class="hidden">
+        <header>
+            <div class="container brand-row">
+                <img class="brand-logo" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2340916c'/%3E%3Cstop offset='1' stop-color='%231b4332'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M32 50C24 40 20 28 24 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C32 38 32 24 32 10' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 50C40 40 44 28 40 14' stroke='%23f1faee' stroke-width='3.5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='14' r='2.6' fill='%23ffd166'/%3E%3Ccircle cx='35.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='28.5' cy='19' r='2.2' fill='%23ffd166'/%3E%3Ccircle cx='34' cy='24.5' r='2' fill='%23ffd166'/%3E%3Ccircle cx='30' cy='24.5' r='2' fill='%23ffd166'/%3E%3C/svg%3E">
+                <div>
+                    <h1 style="margin:0;font-size:1.25rem">Kisan Mitra — Pilot Dashboard</h1>
+                    <p style="margin:.2rem 0 0;opacity:.9;font-size:.88rem"><span id="staffWho"></span>Auto-refreshes every 60s · <a href="/" style="color:#d8f3dc">← Back to app</a></p>
+                </div>
+                <button type="button" class="header-btn" id="logoutBtn">Log out</button>
+            </div>
+        </header>
+        <div class="container">
+            <div class="cards" id="summaryCards"></div>
+            <div class="charts">
+                <div class="card"><h3>Top 5 Diseases</h3><canvas id="barChart"></canvas></div>
+                <div class="card"><h3>Diagnoses (Last 7 Days)</h3><canvas id="lineChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h3>Recent Diagnoses</h3>
+                <div style="overflow-x:auto">
+                    <table>
+                        <thead><tr><th>Time</th><th>Disease</th><th>Conf.</th><th>Lang</th><th>Village</th><th>Feedback</th></tr></thead>
+                        <tbody id="recentTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <footer>© 2026 MRFOUNDERS (Mayur &amp; Raj). All rights reserved.</footer>
+    </div>
+
+    <script>
+        // The staff dashboard is served by the API itself, so it is always same-origin.
+        const API_URL = window.location.origin;
+
+        let barChartInst = null;
+        let lineChartInst = null;
+        let refreshTimer = null;
+
+        // ── Staff login (Cognito admin pool, via the backend) ───────────────────
+        // Steps: email + password → (first login) new password → (first login)
+        // authenticator setup → 6-digit code. Sessions last 7 days, then log in again.
+        const STAFF_KEY = "km_staff_auth_v1";
+        let staffAuth = null;
+        let challenge = null;   // { username, challenge, session }
+        let staffRefreshInFlight = null;
+
+        const STEPS = ["passwordStep", "newPasswordStep", "mfaSetupStep", "mfaStep"];
+        const ERRORS = {
+            not_authorized: "Wrong email or password.",
+            invalid_code: "That code is not correct.",
+            code_expired: "The code expired. Try again.",
+            weak_password: "Password too weak: at least 12 characters with upper-case, lower-case and a number.",
+            too_many_requests: "Too many attempts. Wait a few minutes.",
+            forbidden: "Your account has no dashboard role. Ask an admin.",
+            auth_not_configured: "Login is not configured on the server.",
+        };
+
+        function loadStaff() { try { return JSON.parse(localStorage.getItem(STAFF_KEY)); } catch { return null; } }
+        function saveStaff(v) {
+            staffAuth = v;
+            try { v ? localStorage.setItem(STAFF_KEY, JSON.stringify(v)) : localStorage.removeItem(STAFF_KEY); } catch {}
+        }
+        function storeStaffTokens(d) {
+            saveStaff({
+                ...(staffAuth || {}),
+                access_token: d.access_token,
+                refresh_token: d.refresh_token || staffAuth?.refresh_token,
+                username: d.username || staffAuth?.username,
+                expires_at: Date.now() + (d.expires_in || 3600) * 1000,
+            });
+        }
+
+        function showStep(id, error = "") {
+            STEPS.forEach(s => document.getElementById(s).classList.toggle("hidden", s !== id));
+            const err = document.getElementById("loginError");
+            err.textContent = error;
+            err.classList.toggle("hidden", !error);
+        }
+        function showLoginOverlay(error = "") {
+            clearInterval(refreshTimer);
+            document.getElementById("loginOverlay").classList.remove("hidden");
+            document.getElementById("dashboard").classList.add("hidden");
+            showStep("passwordStep", error);
+        }
+        async function showDashboard() {
+            document.getElementById("loginOverlay").classList.add("hidden");
+            document.getElementById("dashboard").classList.remove("hidden");
+            loadDashboard();
+            clearInterval(refreshTimer);
+            refreshTimer = setInterval(loadDashboard, 60000);
+            try {
+                const me = await (await staffFetch("/admin/auth/me")).json();
+                document.getElementById("staffWho").textContent = `Roles: ${me.roles.join(", ")} · `;
+            } catch {}
+        }
+
+        async function post(path, body) {
+            let res;
+            try {
+                res = await fetch(`${API_URL}${path}`, {
+                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+                });
+            } catch { throw new Error("No connection to the server."); }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(ERRORS[data.detail] || `Login failed (${data.detail || res.status}).`);
+            return data;
+        }
+
+        /** Tokens → dashboard; a challenge → the matching form. */
+        function handleStep(data) {
+            if (data.status === "ok") {
+                storeStaffTokens(data);
+                challenge = null;
+                showDashboard();
+                return;
+            }
+            challenge = { username: data.username, challenge: data.challenge, session: data.session };
+            if (data.challenge === "NEW_PASSWORD_REQUIRED") {
+                showStep("newPasswordStep");
+            } else if (data.challenge === "MFA_SETUP") {
+                const box = document.getElementById("qrBox");
+                box.innerHTML = "";
+                if (window.QRCode) new QRCode(box, { text: data.otpauth_uri, width: 180, height: 180 });
+                document.getElementById("mfaSecret").textContent = data.secret;
+                showStep("mfaSetupStep");
+            } else {
+                showStep("mfaStep");
+            }
+        }
+
+        function onSubmit(formId, makeRequest) {
+            const form = document.getElementById(formId);
+            form.addEventListener("submit", async e => {
+                e.preventDefault();
+                const btn = form.querySelector("button");
+                btn.disabled = true;
+                try {
+                    handleStep(await makeRequest());
+                } catch (err) {
+                    showStep(formId, err.message);
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        onSubmit("passwordStep", () => post("/admin/auth/login", {
+            email: document.getElementById("emailInput").value.trim(),
+            password: document.getElementById("passwordInput").value,
+        }));
+        onSubmit("newPasswordStep", () => post("/admin/auth/challenge", {
+            ...challenge, new_password: document.getElementById("newPasswordInput").value,
+        }));
+        onSubmit("mfaSetupStep", () => post("/admin/auth/challenge", {
+            ...challenge, code: document.getElementById("mfaSetupCode").value.trim(),
+        }));
+        onSubmit("mfaStep", () => post("/admin/auth/challenge", {
+            ...challenge, code: document.getElementById("mfaCode").value.trim(),
+        }));
+
+        function staffRefresh() {
+            if (!staffRefreshInFlight) {
+                staffRefreshInFlight = (async () => {
+                    const res = await fetch(`${API_URL}/admin/auth/refresh`, {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ refresh_token: staffAuth.refresh_token, username: staffAuth.username }),
+                    });
+                    if (!res.ok) throw new Error("session_expired");
+                    storeStaffTokens(await res.json());
+                })().finally(() => { staffRefreshInFlight = null; });
+            }
+            return staffRefreshInFlight;
+        }
+
+        /** fetch() with the staff token; refreshes it, and returns to the login form if the session is over. */
+        async function staffFetch(path) {
+            const send = () => fetch(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${staffAuth.access_token}` } });
+            try {
+                if (Date.now() > staffAuth.expires_at - 60000) await staffRefresh();
+                let res = await send();
+                if (res.status === 401) { await staffRefresh(); res = await send(); }
+                if (res.status === 401) throw new Error("session_expired");
+                if (res.status === 403) { saveStaff(null); showLoginOverlay(ERRORS.forbidden); throw new Error("forbidden"); }
+                return res;
+            } catch (err) {
+                if (err.message === "session_expired") {
+                    saveStaff(null);
+                    showLoginOverlay("Session expired. Please log in again.");
+                }
+                throw err;
+            }
+        }
+
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+            if (staffAuth?.refresh_token) {
+                fetch(`${API_URL}/admin/auth/logout`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ refresh_token: staffAuth.refresh_token }),
+                }).catch(() => {});
+            }
+            saveStaff(null);
+            showLoginOverlay();
+        });
+
+        staffAuth = loadStaff();
+        if (staffAuth?.refresh_token) showDashboard(); else showLoginOverlay();
+
+        async function loadDashboard() {
+            try {
+                const [statsRes, recentRes] = await Promise.all([
+                    staffFetch("/dashboard/stats"),
+                    staffFetch("/dashboard/recent?limit=20"),
+                ]);
+                if (!statsRes.ok || !recentRes.ok) throw new Error(`HTTP ${statsRes.status}/${recentRes.status}`);
+                const stats = await statsRes.json();
+                const recent = await recentRes.json();
+                renderSummary(stats);
+                renderCharts(stats);
+                renderTable(recent);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function renderSummary(s) {
+            document.getElementById("summaryCards").innerHTML = [
+                ["Diagnoses", s.total_diagnoses],
+                ["Chats", s.total_chats],
+                ["Voice", s.total_voice_sessions],
+                ["Helpful %", s.helpful_feedback_pct + "%"],
+                ["Avg Conf.", s.avg_confidence + "%"],
+            ].map(([lbl, val]) => `<div class="stat"><div class="val">${val}</div><div class="lbl">${lbl}</div></div>`).join("");
+        }
+
+        function renderCharts(s) {
+            const sorted = Object.entries(s.disease_breakdown).sort((a,b) => b[1]-a[1]).slice(0,5);
+            const barCtx = document.getElementById("barChart").getContext("2d");
+            if (barChartInst) barChartInst.destroy();
+            barChartInst = new Chart(barCtx, {
+                type: "bar",
+                data: {
+                    labels: sorted.map(x => x[0]),
+                    datasets: [{ label: "Count", data: sorted.map(x => x[1]), backgroundColor: "#40916c" }],
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+            });
+
+            const lineCtx = document.getElementById("lineChart").getContext("2d");
+            if (lineChartInst) lineChartInst.destroy();
+            lineChartInst = new Chart(lineCtx, {
+                type: "line",
+                data: {
+                    labels: s.last_7_days_diagnoses.map(d => d.date.slice(5)),
+                    datasets: [{ label: "Diagnoses", data: s.last_7_days_diagnoses.map(d => d.count), borderColor: "#2d6a4f", tension: 0.3, fill: false }],
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } },
+            });
+        }
+
+        function esc(v) {
+            return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+        }
+
+        function renderTable(rows) {
+            const fb = v => v === null ? "—" : v === 1 ? "👍" : "👎";
+            document.getElementById("recentTable").innerHTML = rows.map(r => `
+                <tr>
+                    <td>${r.timestamp ? r.timestamp.slice(0,16).replace("T"," ") : "—"}</td>
+                    <td>${esc(r.disease)}</td>
+                    <td>${esc(r.confidence)}%</td>
+                    <td>${esc(r.language || "—")}</td>
+                    <td>${esc(r.village || "—")}</td>
+                    <td>${fb(r.feedback)}</td>
+                </tr>
+            `).join("");
+        }
+    </script>
+</body>
+</html>

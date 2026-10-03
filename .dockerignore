@@ -1,0 +1,16 @@
+.git
+node_modules
+web/dist
+android
+data
+infra
+.venv
+**/__pycache__
+*.ipynb
+.env
+.env.*
+kisan_mitra_v3_models
+assets
+scripts
+MOBILE.md
+DEPLOY.md

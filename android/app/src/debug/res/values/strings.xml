@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds show a different name, so test and Play versions are easy to tell apart. -->
+<resources>
+    <string name="app_name">Kisan Mitra (test)</string>
+    <string name="title_activity_main">Kisan Mitra (test)</string>
+</resources>

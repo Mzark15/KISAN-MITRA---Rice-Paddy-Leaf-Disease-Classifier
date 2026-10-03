@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+pillow
+numpy
+python-multipart
+# tflite-runtime has no official wheel for macOS (esp. Apple Silicon) or newer
+# Python versions. inference.py already falls back to tensorflow.lite when
+# tflite_runtime isn't importable, so tensorflow covers every platform here.
+tensorflow
+openai
+anthropic
+google-genai
+boto3>=1.38
+PyJWT[crypto]>=2.8
+aiofiles
+httpx
+python-dotenv

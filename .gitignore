@@ -1,0 +1,111 @@
+# Environment / secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# Data / DB
+# Kaggle Paddy Doctor dataset (1.1 GB) and the app's SQLite DB (DB_PATH=data/...)
+data/
+backend/data/*.db
+backend/data/*.sqlite3
+
+# Trained model checkpoints from experimentation — NOT the shipped .tflite,
+# which is committed on purpose so `git clone` gives a working classifier.
+backend/models/*.h5
+backend/models/*.keras
+
+# Terraform: state holds the backend's AWS secret key; tfvars holds personal settings
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+.env.aws
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# BFG repo-cleaner report noise
+.bfg-report/
+
+# Mobile — Capacitor / Node / Android / iOS
+node_modules/
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# --- Android signing (NEVER commit: anyone with these can publish updates as you) ---
+android/keystore/
+android/keystore.properties
+*.jks
+*.keystore
+
+# --- Android / Gradle build output ---
+build/
+.gradle/
+android/capacitor-cordova-android-plugins/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/captures/
+*.apk
+*.aab
+*.hprof
+*.log
+
+# --- Web build / local env ---
+web/dist/
+dist/
+web/.env.local
+web/.env*.local
+.env.*
+!.env.example
+!*.env.*.example
+!*.example
+.env.aws
+
+# --- ML artifacts / large files ---
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.npy
+*.npz
+kisan_mitra_v3_models/*.keras
+kisan_mitra_v3_models/*.h5
+Thumbs.db
+
+# --- Local tooling / scratch ---
+.history/
+.claude/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+*.bak
+*.tmp
+*.zip
+# Test APK built by `py kisan.py apk` (dist/ is ignored above) and dataset downloads
+kagglehub/
+
+# Terraform plan files can contain secret values
+infra/tfplan
+*.tfplan
